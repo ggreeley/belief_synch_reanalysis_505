@@ -53,3 +53,7 @@ rsconnect/
 **.pdf
 **.html
 **.png
+
+# token file
+./data/osf/token.R
+/data/osf/token.R

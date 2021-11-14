@@ -1,0 +1,49 @@
+---
+title: 'Analysis: Revisiting Vlasceanu et al. (2020)'
+author: "Garrett D. Greeley"
+date: "Document Last Generated: `r format(Sys.time(), '%A, %B %d, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+
+This document/code accomplishes several tasks. In order, it:
+
+1) Step
+2) Step
+3) Step
+4) Step
+
+If the repo is cloned and the file knits properly, the data from data/analysis is read, visualized, and analyzed.
+
+# Libraries
+
+Libraries that may be needed for processing:
+
+```{r}
+library(tidyverse)
+```
+
+# Functions
+
+```{r}
+source(
+  here::here("processing", "functions.R")
+  )
+```
+
+# Data
+
+```{r}
+#osf_original <- readxl::read_xlsx(
+#  here::here(
+#    "data", "osf", "2021-11_original_data.xlsx")
+#  )
+```

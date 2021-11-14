@@ -1,0 +1,158 @@
+---
+title: 'Processing: Raw to Analysis'
+author: "Garrett D. Greeley"
+date: "Document Last Generated: `r format(Sys.time(), '%A, %B %d, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+
+This document/code accomplishes several tasks. In order, it:
+
+1) Step
+2) Step
+3) Step
+4) Step
+
+If the repo is cloned and the file knits properly, the original data (lightly processed manually to make amenable for wrangling with R; data/osf/2021-11_original_data_ggedit.xlsx) is tidied and wrangled. Throughout this process, several new data-sets are created that should be mostly ready for analysis. These datasets are written to the data/analysis folder and are read by analysis/2021-11_analysis.Rmd document for modeling and visualization.
+
+# Libraries
+
+Libraries that may be needed for processing:
+
+```{r}
+library(tidyverse)
+```
+
+Note that, if a library is not used frequently or if there are potential namespace conflicts, it is called with `library::function` conventions. 
+
+# Functions
+
+```{r}
+source(
+  here::here("processing", "functions.R")
+  )
+```
+
+# Read Data
+
+Read the data.
+
+This data file (data/osf/2021-11_original_data_ggedits.xlsx) was manually processed slightly prior to being read. Specifically, column names were made informative using a) context (such as location) and b) Excel formulas. For example, I was able to determine which statements were myths and facts by working backward from aggregation formulas. Likewise, informative columns - with a name but no data - appeared just prior to the relevant data columns. These reference columns were used to adjust redundant column names (e.g., "N1", "N2", ... appear repeatedly following different reference columns) with unique column names. One example:
+
+Column "N1" following "accuracy before" column $\rightarrow$ "raw_accuracy_p1_myth_rpneg_n1", where:
+
+the data is **raw**, the value indexes **accuracy** ratings during phase 1 (**p1**), for the item **n1** which happens to be a **myth** and was not selectively retrieved by the public speaker (*RP-*; **rpneg**).
+
+```{r}
+# raw data on recall proportions
+raw_recall <- readxl::read_xlsx(
+  here::here("data", "osf", "2021-11_original_data_ggedits.xlsx"),
+  sheet = 1,
+  na = c("", "NA")
+  ) %>%
+  janitor::clean_names()
+
+# raw data on rs (reinforcement/suppression) scores - belief change as a function of rs
+raw_rschange <- readxl::read_xlsx(
+  here::here("data", "osf", "2021-11_original_data_ggedits.xlsx"),
+  sheet = 3,
+  na = c("", "NA")
+  ) %>%
+  janitor::clean_names()
+
+# raw data on belief synch
+raw_synch <- readxl::read_xlsx(
+  here::here("data", "osf", "2021-11_original_data_ggedits.xlsx"),
+  sheet = 5,
+  na = c("", "NA")
+  ) %>%
+  janitor::clean_names()
+
+# raw rating data on beliefs (accuracy and support) + demographics
+raw_beliefs <- readxl::read_xlsx(
+  here::here("data", "osf", "2021-11_original_data_ggedits.xlsx"),
+  sheet = 7,
+  na = c("", "NA")
+  ) %>%
+  janitor::clean_names()
+```
+
+# Processing/Wrangling
+
+## Column Type Issues
+
+Excel, unsurprisingly, creates some column type problems (e.g., using "E" instead of rounding).
+
+Looks okay in `raw_recall`, `raw_beliefs`, and `raw_rschange`. Seems to only be an issue in `raw_sycnh`.
+
+```{r}
+raw_synch <- raw_synch %>%
+  select(contains("prop")) %>%
+  mutate(prop_rpneg_decreasetog_practice = as.numeric(prop_rpneg_decreasetog_practice),
+         prop_rpneg_decreasetog_control = as.numeric(prop_rpneg_decreasetog_control))
+```
+
+## Columns of Interest
+
+Not all of the columns in each dataset are relevant. Select what is needed here and rename things if needed - raw_sycnh handled above.
+
+```{r}
+# raw ratings on accuracy and scientific support
+# additionally, demographics live here
+raw_beliefs <- raw_beliefs %>%
+  select(1:11, contains("raw")) %>%
+  rename(participant_code = please_type_your_participant_code_below_this_is_composed_of_the_first_three_letters_of_the_town_in_which_you_were_born_followed_by_a_dash_and_the_two_digits_of_the_month_you_were_born_followed_by_another_dash_and_the_two_digits_of_the_date_you_were_born_if_your_month_or_date_is_only_one_digit_add_a_zero_in_front_for_instance_if_you_were_born_in_princeton_nj_on_february_8_your_code_would_be_pri_02_08_let_the_experimenter_know_if_you_have_any_questions_about_your_code,
+         political_views = indicate_your_political_views_on_a_scale_from_1_to_9_where_1_means_a_oevery_liberala_and_9_means_a_oevery_conservative_a)
+
+# raw_beliefs included here, but unclear how computed
+# paper says average of accuracy and support, but all whole numbers
+# use only for recall data (e.g., prop columns)
+raw_recall <- raw_recall %>%
+  select(1:5, contains(c("raw", "prop"))) %>%
+  rename(condition = condition_2,
+         network = network_3)
+
+raw_rschange <- raw_rschange %>%
+  select(2:4, contains("rs_") & !contains("belief_change"))
+```
+
+## Pivot
+
+At this point, the three datasets with 168 rows (wide format) could be merged, but that's a lot of columns in one place and would make subsequent pivoting difficult. For now, keep separate, pivoting each to a longer format.
+
+`raw_beliefs` $\rightarrow$ `raw_beliefs_long`:
+
+```{r}
+raw_beliefs_long <- raw_beliefs %>%
+  pivot_longer(cols = contains("raw"),
+               names_to = "full_item_info",
+               values_to = "raw_rating") %>%
+  mutate(tmp_col = str_split(full_item_info, pattern = "_"),
+         .after = full_item_info) %>%
+  mutate(data_type = map_chr(tmp_col, 1),
+         rating_type = map_chr(tmp_col, 2),
+         phase = map_chr(tmp_col, 3),
+         fact_or_myth = map_chr(tmp_col, 4),
+         retrieval_practice = map_chr(tmp_col, 5),
+         item_code = map_chr(tmp_col, 6),
+         item_category = str_sub(item_code, start = 1, end = 1)) %>%
+  select(-tmp_col) %>%
+  relocate(raw_rating, .after = item_category)
+```
+
+`raw_recall` $\rightarrow$ `raw_recall_long`:
+
+```{r}
+raw_recall
+```
+
+
+# Write Data
