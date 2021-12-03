@@ -16,10 +16,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 This document/code accomplishes several tasks. In order, it:
 
-1) Step
-2) Step
-3) Step
-4) Step
+1) Loads some libraries (from the `{tidyverse}`) and some data.
+2) Generically cleans of column names
+3) Specifically cleans individual datasets (each sheet in raw data corresponds approximately to one section in the original paper - here, I'm interested in a subset of those sheets)
+4) Writes the cleaned data to ./data/analysis
 
 If the repo is cloned and the file knits properly, the original data (lightly processed manually to make amenable for wrangling with R; data/osf/2021-11_original_data_ggedit.xlsx) is tidied and wrangled. Throughout this process, several new data-sets are created that should be mostly ready for analysis. These datasets are written to the data/analysis folder and are read by analysis/2021-11_analysis.Rmd document for modeling and visualization.
 
@@ -124,7 +124,9 @@ raw_rschange <- raw_rschange %>%
   select(2:4, contains("rs_") & !contains("belief_change"))
 ```
 
-## Pivot
+## Pivot and Tidy
+
+### Raw Ratings
 
 At this point, the three datasets with 168 rows (wide format) could be merged, but that's a lot of columns in one place and would make subsequent pivoting difficult. For now, keep separate, pivoting each to a longer format.
 
@@ -148,11 +150,162 @@ raw_beliefs_long <- raw_beliefs %>%
   relocate(raw_rating, .after = item_category)
 ```
 
+### Raw Recall (ISSUE)
+
+For recall data, which includes "belief" data, pivot the recall columns separately. While the article states that for each item $i$ and person $j$, $belief_{ij} = \frac{accuracy_{i} + scientific_{i}}{2}$, all the belief ratings are whole numbers, so not an average unless there was *perfect* congruency across all participants/items.
+
+So, for now, I'm focusing on recall - "belief" can be reconstructed from the raw data included in `raw_beliefs`.
+
 `raw_recall` $\rightarrow$ `raw_recall_long`:
 
 ```{r}
-raw_recall
+raw_recall %>%
+  select(1:5, contains("prop")) %>%
+  pivot_longer(cols = contains("prop"),
+               names_to = "full_item_info",
+               values_to = "prop_dyadic_recall") %>%
+  mutate(tmp_col = str_split(full_item_info, pattern = "_"),
+         .after = full_item_info) %>%
+  mutate(measure_type = map_chr(tmp_col, 1),
+         task_type = map_chr(tmp_col, 2),
+         fact_or_myth = map_chr(tmp_col, 3),
+         retrieval_practice = map_chr(tmp_col, 4),
+         item_code = map_chr(tmp_col, 5),
+         item_category = str_sub(item_code, start = 1, end = 1)) %>% 
+  select(-tmp_col) %>%
+  relocate(prop_dyadic_recall, .after = item_category) %>%
+  mutate(prop_dyadic_recall = round(prop_dyadic_recall, 4),
+         prop_dyadic_recall_ntrials = case_when(
+           prop_dyadic_recall == 0.25 |
+             prop_dyadic_recall == 0.5 |
+             prop_dyadic_recall == 0.75 ~ 4,
+           prop_dyadic_recall == 0.3333 |
+             prop_dyadic_recall == 0.6667 ~ 3,
+           TRUE ~ 999
+         )) %>% #view()
+  # some participants appear to have BOTH .25/.5/.75 recall levels AND .33/.66 recall levels
+  # that should be impossible - individuals interact 3 OR 4 times...how frequent is this?
+  mutate(prop_dyadic_recall_ntrials = ifelse(prop_dyadic_recall_ntrials == 999,
+                                             NA,
+                                             prop_dyadic_recall_ntrials)) %>%
+  group_by(response_id) %>%
+  mutate(ntrials_consistent = ifelse(3 & 4 %in% prop_dyadic_recall_ntrials, FALSE, TRUE)) %>%
+  ungroup() %>%
+  filter(ntrials_consistent == FALSE) %>%
+  group_by(response_id) %>%
+  slice_head(n = 1) #%>%
+  # 111 / 168 participants have differing numbers of trials implied by recall proportions
+  #view()
 ```
 
+Stopping here, for now, on the recall data. Above code demonstrates that a significant chunk of the sample - 111 individuals - have recall proportions that are inconsistent. Participants within a network are reported to have recalled in **either** 3 or 4 dyads. Thus, within a participant and for each item, possible recall values are only:
+
+If 3 dyadic recalls, an item can be recalled - 0, .33, .66, or 1
+If 4 dyadic recalls, an item can be recalled - 0, .25, .5, .75, or 1
+
+In all, 111 participants have recall levels that include possibilities from both of these options. 
+
+My original plan was to fit a mixed-effects logistic regression model to these data at the item level, but that requires knowing how many trials were possible for a given participant (e.g., item $i$ for participant $j$ was recalled in 3 trials out of 4). However, as it appears the (implied) number of trials is inconsistent *within* participants, this isn't possible.
+
+Modeling these proportions in a beta regression context is possible, but I'm worried about variance - at most, there are only 5 possible values. For now, moving on to `raw_rschange` and `raw_synch` data.
+
+### Raw R/S Change
+
+```{r}
+raw_rschange_long <- raw_rschange %>%
+  rename(response_id = response_id_2,
+         condition = condition_3,
+         network = network_4) %>%
+  # exclude aggregate (neg/0/pos) columns - not needed for present purposes
+  # keep rs_*all*_ columns (should just be average of rppos and rpneg)
+  # can revisit if replication of ANOVA in paper is needed
+  select(1:30) %>%
+  pivot_longer(cols = 4:30,
+               names_to = "full_rs_info",
+               values_to = "belief_change") %>%
+  mutate(tmp_col = str_split(full_rs_info, pattern = "_"),
+         .after = full_rs_info) %>%
+  mutate(measure_type = map_chr(tmp_col, 1),
+         retrieval_practice = map_chr(tmp_col, 2),
+         rs_level = map_chr(tmp_col, 3),
+         rs_level_num = case_when(
+           rs_level == "neg4" ~ -4,
+           rs_level == "neg3" ~ -3,
+           rs_level== "neg2" ~ -2,
+           rs_level == "neg1" ~ -1,
+           rs_level == "zero" ~ 0,
+           rs_level == "pos1" ~ 1,
+           rs_level == "pos2" ~ 2,
+           rs_level == "pos3" ~ 3,
+           rs_level == "pos4" ~ 4,
+         ),
+         belief_increase = ifelse(belief_change > 0, 1, 0),
+         retrieval_practice_positive = case_when(
+           retrieval_practice == "rppos" ~ 1,
+           retrieval_practice == "rpneg" ~ 0,
+           TRUE ~ NA_real_
+         ),
+         missing_data = ifelse(is.na(belief_change), 1, 0)) %>%
+  select(-tmp_col) %>%
+  relocate(belief_change, .after = rs_level_num)
+  
+```
+
+### Raw Synchronicity
+
+This data is set up a little different than the rest. There are "practice" columns (presumably belonging to the experimental condition) and "control" columns, split by items that were selectively retrieved by the public speaker ("rppos") or not ("rpneg") and whether or not the column indexes increasing or decreasing together. Thus, each column is a proportion - the proportion of items that increased/decreased together for the *pair*.
+
+The set up, then, yields 8 columns:
+
+- practice, rppos, increasetog
+- control, rppos, increasetog
+- practice, rppos, decreasetog
+- control, rppos, decreastog
+
+and repeat for rpneg items...
+
+Finally, there are 462 rows in the raw because within each network there are 12 individuals and thus (`ncol(combn(12, 2))`) = 66 pairs. With 7 networks per condition, $7 \times 66 = 462$.
+
+Pivoting everything should return a data with $462 \times 2 = 924$ for each of the 4 rppos/rpneg vs. increasetog/decreasetog combinations, so $924 \times 4 = 3696$.
+
+```{r}
+raw_synch_long <- raw_synch %>%
+  pivot_longer(cols = everything(),
+               names_to = "full_var_info",
+               values_to = "prop") %>%
+  mutate(tmp_col = str_split(full_var_info, pattern = "_"),
+         .after = full_var_info) %>%
+  mutate(measure_type = map_chr(tmp_col, 1),
+         retrieval_practice = map_chr(tmp_col, 2),
+         change_direction = map_chr(tmp_col, 3),
+         condition = map_chr(tmp_col, 4)) %>%
+  select(-tmp_col) %>%
+  relocate(prop, .after = condition)
+```
 
 # Write Data
+
+Write data to data/analysis, to be read by 2021-11_analysis.Rmd
+
+```{r}
+write_csv(raw_beliefs_long,
+          file = here::here("data", "analysis", "2021-11_long_beliefs.csv"),
+          na = "")
+
+write_csv(raw_rschange_long,
+          file = here::here("data", "analysis", "2021-11_long_rschange.csv"),
+          na = "")
+
+write_csv(raw_synch_long,
+          file = here::here("data", "analysis", "2021-11_long_synch.csv"),
+          na = "")
+```
+
+# Session Info
+
+For reproducibility
+
+```{r}
+sessionInfo()
+```
+

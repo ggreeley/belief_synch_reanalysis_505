@@ -44,6 +44,9 @@ rsconnect/
 **/.pdf
 **/.html
 **/.png
+**/.csv
+**/.xlsx
+**/.rds
 
 **.DS_Store
 **.DS_Store
@@ -53,7 +56,6 @@ rsconnect/
 **.pdf
 **.html
 **.png
-
-# token file
-./data/osf/token.R
-/data/osf/token.R
+**.csv
+**.xlsx
+**.rds
