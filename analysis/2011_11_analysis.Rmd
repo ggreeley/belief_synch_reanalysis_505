@@ -54,6 +54,10 @@ Helper functions:
 source(
   here::here("processing", "functions.R")
   )
+
+source(
+  here::here("analysis", "functions.R")
+  )
 ```
 
 # Data
@@ -148,7 +152,7 @@ indiv_dat %>%
   theme_light()
 ```
 
-# Accuracy & Scientific Support Ratings
+# Belief Change
 
 ## Visualizations
 
@@ -259,6 +263,8 @@ belief_cor <- beliefs %>%
   pivot_wider(names_from = phase,
               values_from = raw_rating)
 
+#cor(belief_cor$p1, belief_cor$p2)
+
 indiv_accuracy_phase_cor <- belief_cor %>%
   filter(rating_type == "accuracy") %>%
   group_by(participant_code) %>%
@@ -293,7 +299,8 @@ indiv_accuracy_phase_cor %>%
                 ymax = conf.high)) +
   facet_wrap(~ var_cor) +
   geom_hline(aes(yintercept = mean_cor),
-             color = "red") +
+             color = "red",
+             size = 2) +
   labs(x = "Participant",
        y = "Pearson Correlation (r)") +
   raw_rating_theme()
@@ -577,6 +584,7 @@ belief_change_plot_f <- emmeans::emmeans(belief_change_cond_2,
 View / construct plots. Proud of this one:
 
 ```{r}
+library(patchwork)
 belief_change_abcdef <- 
   (belief_change_plot_a / belief_change_plot_b / belief_change_plot_c) |
   (belief_change_plot_d / belief_change_plot_e / belief_change_plot_f) 
@@ -922,30 +930,58 @@ belief_direction_plot_d <- belief_ord_cond_2_brm_effects[5] %>%
 View and combine plots:
 
 ```{r}
-belief_direction_plot_a
-belief_direction_plot_b
-belief_direction_plot_c
-belief_direction_plot_d
+#belief_direction_plot_a
+#belief_direction_plot_b
+#belief_direction_plot_c
+#belief_direction_plot_d
 
-(belief_direction_plot_a / belief_direction_plot_b) |
+belief_direction_plot_abcd <- (belief_direction_plot_a / belief_direction_plot_b) |
   (belief_direction_plot_c / belief_direction_plot_d)
+
+belief_direction_plot_abcd
+
+# save
+#ggsave(filename = here::here(
+#  "figs",
+#  "figs_final",
+#  paste0(format(Sys.time(), "%Y-%m-%d_%H-%M_%S_"), "brms_ord_mod_population_effects", ".png")
+#  ),
+#  plot = belief_direction_plot_abcd,
+#  width = 14,
+#  height = 12)
 ```
 
+# Reinforcement / Suppression
 
-
-# R/S Missing Data Analysis
+## R/S Missing Data Analysis
 
 What percentage of data is missing at each R/S level / retrieval practice combination (e.g., R/S -4 for practiced items)?
 
-Looks systematic
+Given the nature of the metric, a lot of data is missing. More importantly, this missingness looks systematic (MNAR):
 
 ```{r}
 rschange %>%
   filter(retrieval_practice != "all") %>%
   mutate(rs_level = fct_reorder(rs_level, rs_level_num)) %>%
-  group_by(retrieval_practice, rs_level) %>%
-  summarise(perc_missing = mean(missing_data) * 100) %>%
-  ungroup()
+  group_by(retrieval_practice, rs_level_num) %>%
+  summarise(prop_missing = mean(missing_data)) %>%
+  ungroup() %>%
+  mutate(retrieval_practice = ifelse(retrieval_practice == "rppos",
+                                     "Retrieval Practice",
+                                     "No Retrieval Practice")) %>%
+  ggplot(aes(x = factor(rs_level_num), y = prop_missing)) +
+  geom_bar(stat = "identity",
+           fill = "#134e13") +
+  facet_wrap(~ retrieval_practice, ncol = 1) +
+  coord_cartesian(ylim = c(0,1)) +
+  geom_hline(yintercept = .5,
+             color = "red",
+             linetype = "dashed",
+             size = 2) +
+  labs(title = "A) Observed Missingness",
+       x = "R/S Level",
+       y = "Proportion Missing") +
+  raw_rating_theme()
 ```
 
 Prep data for modeling (remove aggregate "all" level for each person):
@@ -956,6 +992,8 @@ rschange_mod_dat <- rschange %>%
   # for modeling, set rs_level reference to 0
   # "Beliefs that were unmentioned and unrelated to those mentioned
   # received a score of 0 on the R/S scale."
+  
+  # don't need both of these factors, but
   mutate(rs_level = factor(rs_level, levels = c("zero",
                                                 "neg4",
                                                 "neg3",
@@ -964,26 +1002,198 @@ rschange_mod_dat <- rschange %>%
                                                 "pos1",
                                                 "pos2",
                                                 "pos3",
-                                                "pos4")))
+                                                "pos4")),
+         rs_level_num_fac = factor(rs_level_num, levels = c("0",
+                                                            "-4",
+                                                            "-3",
+                                                            "-2",
+                                                            "-1",
+                                                            "1",
+                                                            "2",
+                                                            "3",
+                                                            "4")))
+
+levels(rschange_mod_dat$rs_level_num_fac)
 ```
 
-And analyze via multilevel logistic regression with `lme4::glmer` (frequentist):
+## Analyses (#3)
+
+### Mixed Effect Logistic Regression (Frequentist)
+
+And analyze via multilevel logistic regression with `lme4::glmer` (frequentist).
+
+No null model first because not really interested in nuances of random effects - the data is structured in such a way that they should be included (multiple observations per participant) so they are included. Here, we are interested in systematic missingness as a function of potential predictors in subsequent models (e.g., $Belief\:Change \sim RS\:Level + Retrieval\:Practice + Condition + ...$).
+
+Note: treating RS level as continuous. Treating it as a factor (eventually what it is aggregated to in the paper) leads to convergence issues as it requires estimating 8 comparisons.
 
 ```{r}
-rschange_missing_glm <- glmer(missing_data ~ retrieval_practice + rs_level + condition + (1 | response_id),
+rschange_missing_cond_1 <- glmer(missing_data ~ retrieval_practice + rs_level_num + condition +
+                                   (1 | response_id),
                               family = binomial(link = "logit"), # bernoulli, but special case of binom
                               data = rschange_mod_dat)
 
-summary(rschange_missing_glm)
+summary(rschange_missing_cond_1)
 ```
 
-Bayesian version, just for practice:
+Table. Nice one for viewing in R/RMarkdown, code from `stargazer` for paper:
 
 ```{r}
-rschange_missing_brm <- brm(missing_data ~ retrieval_practice + rs_level + condition + (1 | response_id),
-                            family = bernoulli(link = "logit"), # only 0/1 so more efficient
-                            data = rschange_mod_dat)
+broom.mixed::tidy(rschange_missing_cond_1) %>%
+  mutate(estimate_oddratio = ifelse(effect == "fixed", exp(estimate), NA),
+         .after = estimate) %>%
+  select(-statistic)
 
-summary(rschange_missing_brm)
+#stargazer::stargazer(rschange_missing_cond_1,
+#                     type = "latex",
+#                     out = here::here("figs", "figs_temp", "rschange_cond_1_tab.tex"))
 ```
 
+Plot predicted missingness as a function of retrieval practice and R/S level (the statistically significant predictors):
+
+```{r}
+rs_missingness_plot_a <- emmeans::emmeans(rschange_missing_cond_1,
+                 specs = ~ retrieval_practice,
+                 type = "response") %>%
+  data.frame() %>%
+  mutate(retrieval_practice = ifelse(retrieval_practice == "rpneg",
+                                     "Not Practiced",
+                                     "Practiced")) %>%
+  ggplot(aes(x = retrieval_practice, y = prob)) +
+  geom_bar(stat = "identity",
+           fill = "#134e13") +
+  geom_errorbar(aes(ymin = asymp.LCL,
+                    ymax = asymp.UCL),
+                width = 0.25,
+                color = "black") +
+  coord_cartesian(ylim = c(0.3, 0.8)) +
+  labs(title = "A) Retrieval Practice",
+       x = "Retrieval Practice",
+       y = "Missing Probability") +
+  raw_rating_theme()
+
+rs_missingness_plot_b <- emmeans::emmeans(rschange_missing_cond_1,
+                 specs = ~ rs_level_num,
+                 at = list(rs_level_num = -4:4),
+                 type = "response") %>%
+  data.frame() %>%
+  ggplot(aes(x = rs_level_num, y = prob)) +
+  geom_ribbon(aes(ymin = asymp.LCL,
+                ymax = asymp.UCL),
+              fill = "lightgray",
+              alpha = 0.30) +
+  geom_line(size = 2,
+            color = "#134e13") +
+  scale_x_continuous(breaks = -4:4) +
+  coord_cartesian(ylim = c(0.3, 0.75)) +
+  labs(title = "B) Reinforcement/Supression (RS) Level",
+       x = "Reinforcement/Supression (RS) Level",
+       y = "Missing Probability") +
+  raw_rating_theme()
+```
+
+Compile and plot:
+
+```{r}
+rs_missingness_plot_ab <- rs_missingness_plot_a + rs_missingness_plot_b
+
+rs_missingness_plot_ab
+
+#ggsave(filename = here::here(
+#  "figs",
+#  "figs_final",
+#  paste0(format(Sys.time(), "%Y-%m-%d_%H-%M_%S_"), "rs_missingness_plot_ab", ".png")
+#  ),
+#  plot = rs_missingness_plot_ab,
+#  width = 14)
+```
+
+
+### Mixed Effect Logistic Regression (Bayesian)
+
+Bayesian version for comparison:
+
+```{r}
+rschange_missing_cond_1_brm <- brm(missing_data ~ retrieval_practice + rs_level_num + condition +
+                              (1 | response_id),
+                            family = bernoulli(link = "logit"), # only 0/1 so more efficient
+                            data = rschange_mod_dat,
+                            file = "analysis/brms_fits/rschange_missing_cond_1_brm")
+
+summary(rschange_missing_cond_1_brm)
+plot(rschange_missing_cond_1_brm)
+```
+
+# Belief Synchronicity
+
+## "Changing Together"
+
+The original paper describes assessing belief synchronization by comparing - across condition and retrieval practice - the proportion of beliefs that increased together and decreased together. "Together" = each pair of individuals within a network, whether or not they collaborated.
+
+To recap, from 2021-11_processing.Rmd:
+
+"...there are 462 rows in the raw because within each network there are 12 individuals and thus (`ncol(combn(12, 2))`) = 66 pairs. With 7 networks per condition, $7 \times 66 = 462$.
+
+Pivoting everything should return a data with $462 \times 2 = 924$ for each of the 4 rppos/rpneg vs. increasetog/decreasetog combinations, so $924 \times 4 = 3696$."
+
+There was **no row level information in the raw data indicating what pair/network each proportion belongs to**, so no way to account for network dependence - of which there should be a ton. Within increasing/decreasing together levels, if we assume each pair is independent (extremely tenuous, but same as ANOVA in the paper), we can do beta regression. If there was some way to know what network each pair (row) is derived from, mixed effect beta regression, with random effect(s) for network, would be the best option.
+
+For now, just doing beta regression in place of the ANOVA reported in the paper. This will not be going in my paper (which is more about belief change/measurement), largely because beliefs increasing/decreasing together in this context is different from the way I conceptualize beliefs in the rest of my paper - the beliefs these data are based on are the collapsed accuracy/scientific support ratings, $z$-scored within participants. Thus, this will go in the Appendix as "Belief Change Synchronicity Beta Regression Re-analysis"
+
+### Beta Regression (Frequentist; Appendix B)
+
+Check data
+
+```{r}
+synch %>%
+  filter(is.na(prop)) %>% 
+  group_by(actual_pair) %>%
+  slice_head(n = 1) %>%
+  nrow()
+
+# 22 pairs / 924 have NA prop values
+```
+
+In the paper, increase together and decrease together is within participants
+
+```{r}
+# zoib
+# betareg
+
+# https://github.com/glmmTMB/glmmTMB/pull/497/commits/0366610b3095589698d90810c4bda1d32fd65afd
+# recently implemented! exciting
+# interpretation though?
+synch_prop_cond_1 <- glmmTMB::glmmTMB(prop ~ 1 +
+                                        retrieval_practice +
+                                        change_direction +
+                                        condition +
+                                        # nest pairs in networks
+                                        (1 | actual_net/actual_pair),
+                                      family = glmmTMB::beta_family,
+                                      zi = ~1, # for 0 inflation
+                                      data = synch)
+
+summary(synch_prop_cond_1)
+#min(synch$prop, na.rm = TRUE)
+#max(synch$prop, na.rm = TRUE)
+```
+
+### Beta Regression (Bayesian; Appendix B)
+
+```{r}
+synch_prop_cond_1_brm <- brm(prop ~ 1 +
+                           retrieval_practice +
+                           change_direction +
+                           condition +
+                           (1 | actual_net/actual_pair),
+                            family = zero_inflated_beta(link = "logit"),
+                            data = synch,
+                            file = "analysis/brms_fits/synch_prop_cond_1_brm")
+```
+
+# Session Info
+
+For reproducibility
+
+```{r}
+sessionInfo()
+```

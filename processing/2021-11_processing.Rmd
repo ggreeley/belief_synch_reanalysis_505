@@ -269,8 +269,43 @@ Finally, there are 462 rows in the raw because within each network there are 12 
 Pivoting everything should return a data with $462 \times 2 = 924$ for each of the 4 rppos/rpneg vs. increasetog/decreasetog combinations, so $924 \times 4 = 3696$.
 
 ```{r}
+#raw_synch_long <- raw_synch %>%
+#  mutate(ex_net = rep(letters[1:7], each = 66),
+#         co_net = rep(letters[8:14], each = 66),
+#         ex_pair = 1:462,
+#         con_pair = 462 + ex_pair) %>% view()
+#  pivot_longer(cols = everything(),
+#               names_to = "full_var_info",
+#               values_to = "prop") %>%
+#  mutate(tmp_col = str_split(full_var_info, pattern = "_"),
+#         .after = full_var_info) %>%
+#  mutate(measure_type = map_chr(tmp_col, 1),
+#         retrieval_practice = map_chr(tmp_col, 2),
+#         change_direction = map_chr(tmp_col, 3),
+#         condition = map_chr(tmp_col, 4)) %>%
+#  select(-tmp_col) %>%
+#  relocate(prop, .after = condition)
+
+# 2021-12-03
+# in order to conduct mixed effect beta regression, need (at least) pair information
+# (e.g., for within-pair measurement; random effects) - network information may be nice as well...
+
+# that is NOT included in the data on OSF, but because of the wide format, a reasonable 
+# approach is to assume - for a given row of practice/control data (that is between participant) - 
+# data belongs to one pair. that is a safe assumption, I think. for network information,
+# I assume that the 66 pairs from each network are in adjacent rows (e.g., 1:66 = network 1)
+
+# the first mutate creates unique network and pair codes
+# but remember, because data is wide and there are separate columns for
+# "practice" and "control" between participant variables, 
+# the final mutate after pivoting (319-321) selects the network/pair values really 
+# corresponding to the pivoted condition information
 raw_synch_long <- raw_synch %>%
-  pivot_longer(cols = everything(),
+  mutate(ex_net = rep(letters[1:7], each = 66),
+         co_net = rep(letters[8:14], each = 66),
+         ex_pair = 1:462,
+         con_pair = 462 + ex_pair) %>% #view()
+  pivot_longer(cols = contains("prop"),
                names_to = "full_var_info",
                values_to = "prop") %>%
   mutate(tmp_col = str_split(full_var_info, pattern = "_"),
@@ -280,7 +315,11 @@ raw_synch_long <- raw_synch %>%
          change_direction = map_chr(tmp_col, 3),
          condition = map_chr(tmp_col, 4)) %>%
   select(-tmp_col) %>%
-  relocate(prop, .after = condition)
+  relocate(prop, .after = condition) %>%
+  mutate(actual_net = ifelse(condition == "practice", ex_net, co_net),
+         actual_pair = ifelse(condition == "practice", ex_pair, con_pair),
+         actual_pair = sprintf("pair_%i", actual_pair)) %>%
+  select(-ex_net,-ex_pair,-co_net, -con_pair)
 ```
 
 # Write Data
@@ -288,17 +327,17 @@ raw_synch_long <- raw_synch %>%
 Write data to data/analysis, to be read by 2021-11_analysis.Rmd
 
 ```{r}
-write_csv(raw_beliefs_long,
-          file = here::here("data", "analysis", "2021-11_long_beliefs.csv"),
-          na = "")
-
-write_csv(raw_rschange_long,
-          file = here::here("data", "analysis", "2021-11_long_rschange.csv"),
-          na = "")
-
-write_csv(raw_synch_long,
-          file = here::here("data", "analysis", "2021-11_long_synch.csv"),
-          na = "")
+#write_csv(raw_beliefs_long,
+#          file = here::here("data", "analysis", "2021-11_long_beliefs.csv"),
+#          na = "")
+#
+#write_csv(raw_rschange_long,
+#          file = here::here("data", "analysis", "2021-11_long_rschange.csv"),
+#          na = "")
+#
+#write_csv(raw_synch_long,
+#          file = here::here("data", "analysis", "2021-11_long_synch.csv"),
+#          na = "")
 ```
 
 # Session Info

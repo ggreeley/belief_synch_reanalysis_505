@@ -13,3 +13,13 @@ icc_logit <- function(rand_effect_var) {
   return(icc)
   
 }
+
+# Smithson, M. & Verkuilen transformation
+# https://stats.stackexchange.com/questions/31300/dealing-with-0-1-values-in-a-beta-regression
+s_and_v_2006 <- function(prop, n, s) {
+  
+  prop_prime = prop * (n - 1) + s / n
+  
+  return(prop_prime)
+}
+
