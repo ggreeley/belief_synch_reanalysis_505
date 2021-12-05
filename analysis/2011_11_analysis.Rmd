@@ -951,6 +951,290 @@ belief_direction_plot_abcd
 #  height = 12)
 ```
 
+## Analysis (#3)
+
+Sticking within an *ordinal* framework, let's move away from computing change first (e.g., from phase 1 to phase 2, did belief change [binary] or change in direction [ordinal]). That is, we're already fitting mixed models - what if we don't collapse across phase and instead treat phase as a fixed effect and, perhaps, give participants random slopes in belief across phases in the random effect structure?
+
+To start, let's stick with 3 ordinal levels, computed from the original 1-7 Likert belief scale, such that ratings 1-3 = don't believe, 4 = neutral, and 5-7 = believe.
+
+Prep data (for this model and the next [Analysis #4]:
+
+```{r}
+belief_multinom_dat <- belief_multinom_dat %>%
+  mutate(belief_bin_three_fct = case_when(
+    raw_rating <= 3 ~ "Don't Believe",
+    raw_rating == 4 ~ "Neutral",
+    raw_rating >= 5 ~ "Do Believe"
+  ),
+  belief_bin_three_num = case_when(
+    raw_rating <= 3 ~ 1,
+    raw_rating == 4 ~ 2,
+    raw_rating >= 5 ~ 3
+  ),
+  belief_bin_three_fct = fct_reorder(belief_bin_three_fct, .x = belief_bin_three_num),
+  belief_bin_seven_fct = factor(raw_rating),
+  condition = factor(condition),
+  phase = factor(phase))
+
+# check levels
+levels(belief_multinom_dat$belief_bin_three_fct)
+levels(belief_multinom_dat$belief_bin_seven_fct)
+levels(belief_multinom_dat$condition)
+levels(belief_multinom_dat$phase)
+
+# count level distributions
+belief_multinom_dat %>%
+  count(belief_bin_three_fct)
+
+# mode across all = 5
+belief_multinom_dat %>%
+  count(belief_bin_seven_fct)
+```
+
+### Mixed Effect 3-Category Ordinal Logistic Regression w/ Phase (Frequentist)
+
+```{r}
+belief_logit_dat %>%
+  count(rating_direction) # no excessive levels
+
+# for ordinal::clmm, rating_direction needs to be a factor
+belief_logit_dat$rating_direction <- factor(belief_logit_dat$rating_direction,
+                                               levels = c("decrease", "same", "increase"))
+
+levels(belief_logit_dat$rating_direction)
+
+```
+
+Empty/Null model. No random slopes:
+
+```{r}
+belief_ord_3_phase_null <- ordinal::clmm(belief_bin_three_fct ~ 1 +
+                                         (1 | participant_code) + (1 | item_code),
+                                       link = "logit", # proportional odds
+                                       data = belief_multinom_dat)
+
+summary(belief_ord_3_phase_null)
+```
+
+Conditional models:
+
+```{r}
+belief_ord_3_phase_cond_1 <- ordinal::clmm(belief_bin_three_fct ~ 1 +
+                                           condition +
+                                           rating_type +
+                                           fact_or_myth +
+                                           phase +
+                                         (1 | participant_code) + (1 | item_code),
+                                       link = "logit", # proportional odds
+                                       data = belief_multinom_dat)
+
+summary(belief_ord_3_phase_cond_1)
+
+belief_ord_3_phase_cond_2 <- ordinal::clmm(belief_bin_three_fct ~ 1 +
+                                           condition +
+                                           rating_type +
+                                           fact_or_myth +
+                                           phase +
+                                           item_category +
+                                           political_views +
+                                         (1 | participant_code) + (1 | item_code),
+                                       link = "logit", # proportional odds
+                                       data = belief_multinom_dat)
+
+summary(belief_ord_3_phase_cond_2)
+
+belief_ord_3_phase_cond_3 <- ordinal::clmm(belief_bin_three_fct ~ 1 +
+                                           condition * phase +
+                                           rating_type +
+                                           fact_or_myth +
+                                           item_category +
+                                           political_views +
+                                         (1 | participant_code) + (1 | item_code),
+                                       link = "logit", # proportional odds
+                                       data = belief_multinom_dat)
+
+summary(belief_ord_3_phase_cond_3)
+```
+
+Odds ratios:
+
+```{r}
+exp(belief_ord_3_phase_cond_3$coefficients)
+```
+
+### Mixed Effect 3-Category Ordinal Logistic Regression w/ Phase (Bayesian)
+
+Fit the full model from above in a Bayesian framework.
+
+Note. "NEW" because I previously forgot to make condition a factor. No big deal without an interaction (`brms` seems to assume it is a factor; see earlier models), but with...and it changes interaction interpratation (e.g., when condition = 0). 
+
+```{r}
+belief_ord_3_phase_cond_3_NEW_brm <- brm(belief_bin_three_num ~ 1 +
+                                           condition * phase +
+                                           rating_type +
+                                           fact_or_myth +
+                                           item_category +
+                                           political_views +
+                                         (1 | participant_code) + (1 | item_code),
+                             family = cumulative(link = "logit"),
+                             data = belief_multinom_dat,
+                             file = "analysis/brms_fits/belief_ord_3_phase_cond_3_NEW_brm")
+
+summary(belief_ord_3_phase_cond_3_NEW_brm)
+plot(belief_ord_3_phase_cond_3_NEW_brm)
+
+#summary(belief_ord_3_phase_cond_3_brm)
+```
+
+Predict/plot...
+
+*Note*: Plots are same after refitting with condition as continuous. Interestingly, it's clearly modeled as a factor in NEW (e.g., output = condition2, indicating reference = 1), but conditional_effects requires a numeric input. Tried quoting and it throws an error, see below. Don't know if this is a bug or just idiosyncratic, but something to keep in mind. Perhaps this is on me - I should have created a new character/factor column so there is no ambiguity - but even so.
+
+```{r}
+# default re_form = NA, so no random effects used (nice for population effects)
+# all - namely for plotting plotting political_views effect (when condition = 1)
+# modeled as continuous :( but can just grab estimates when 1
+
+# changed model - modeled as factor - but needs continuous input here?
+belief_ord_3_phase_cond_3_brm_polit_condit <- data.frame(condition = c(1, 1),
+                                                         phase = c("p1", "p2"))
+
+belief_ord_3_phase_cond_3_brm_NEW_effects <-
+  conditional_effects(belief_ord_3_phase_cond_3_brm,
+                      conditions = belief_ord_3_phase_cond_3_brm_polit_condit,
+                      categorical = TRUE)
+
+# for interaction
+# could add more factors to this to get more combos for plotting
+# those not included are held at mean or reference group
+#belief_ord_3_phase_cond_3_brm_int_condit <- data.frame(condition = c("1","2"),
+#                                                       phase = factor(c("p1", "p2")))
+
+# original variable numeric? model output suggests otherwise (e.g., condition2)
+belief_ord_3_phase_cond_3_brm_int_NEW_condit <- data.frame(condition = c(1,1,2,2),
+                                                       phase = factor(c("p1", "p2", "p1", "p2")))
+
+view(belief_ord_3_phase_cond_3_brm_int_NEW_condit)
+
+belief_ord_3_phase_cond_3_brm_int_NEW_effects <-
+  conditional_effects(belief_ord_3_phase_cond_3_brm,
+                      conditions = belief_ord_3_phase_cond_3_brm_int_NEW_condit,
+                      categorical = TRUE)
+
+
+# colors I like
+ordinal_colors <- c("darkred", "grey50", "#008000")
+
+
+# extract predicted probabilities
+
+# political_view effect at:
+# condition = 1, phases 1 and 2, rating_type = accuracy,
+# fact_or_myth = fact, item category = a
+
+belief_ord_3_phase_plot_b <- belief_ord_3_phase_cond_3_brm_NEW_effects[6] %>%
+  data.frame() %>%
+  janitor::clean_names() %>%
+  mutate(political_views_cats_cats = case_when(
+    political_views_cats_cats == 1 ~ "Don't Believe",
+    political_views_cats_cats == 2 ~ "Neutral",
+    political_views_cats_cats == 3 ~ "Do Believe"
+  ),
+  political_views_cats_cats = factor(political_views_cats_cats,
+                               levels = c("Don't Believe", "Neutral", "Do Believe")),
+  political_views_cats_phase = ifelse(political_views_cats_phase == "p1",
+                                      "Phase 1", "Phase 2")
+  ) %>%
+  ggplot(aes(x = political_views_cats_political_views,
+             y = political_views_cats_estimate,
+             color = political_views_cats_cats)) +
+  geom_ribbon(aes(ymin = political_views_cats_lower,
+                  ymax = political_views_cats_upper,
+                  group = political_views_cats_cats),
+              fill = "lightgray",
+              alpha = 0.30) +
+  geom_line(aes(group = political_views_cats_cats),
+            size = 2) +
+  scale_color_manual(values = ordinal_colors) +
+  coord_cartesian(ylim = c(0,1)) +
+  scale_x_continuous(breaks = 1:7) +
+  labs(title = "B) Political Views",
+       x = "Political Views",
+       y = "Probability",
+       color = "Belief") +
+  facet_wrap(~ political_views_cats_phase) +
+  raw_rating_theme()
+
+
+
+# condition / phase interaction at:
+# rating_type = accuracy, political_views = mean (3.27),
+# item_category = a, fact_or_myth = fact
+belief_ord_3_phase_plot_a <- belief_ord_3_phase_cond_3_brm_int_NEW_effects[1] %>%
+  data.frame() %>%
+  janitor::clean_names() %>%
+  mutate(condition_cats_cats = case_when(
+    condition_cats_cats == 1 ~ "Don't Believe",
+    condition_cats_cats == 2 ~ "Neutral",
+    condition_cats_cats == 3 ~ "Do Believe"
+  ),
+  condition_cats_cats = factor(condition_cats_cats,
+                               levels = c("Don't Believe", "Neutral", "Do Believe")),
+  condition_cats_phase = ifelse(condition_cats_phase == "p1",
+                                      "Phase 1", "Phase 2")
+  ) %>%
+  # condition counted as continuous (though coef matches clmm mod)
+  # grab only rows where condition == 1 or 2
+  filter(condition_cats_condition == 1 |
+           condition_cats_condition == 2) %>%
+  ggplot(aes(x = factor(condition_cats_condition),
+             y = condition_cats_estimate,
+             fill = condition_cats_cats)) +
+  geom_bar(stat = "identity",
+           position = "dodge") +
+  geom_errorbar(aes(ymin = condition_cats_lower,
+                    ymax = condition_cats_upper),
+                width = 0.25,
+                position = position_dodge(width = 0.90)) +
+  scale_fill_manual(values = ordinal_colors) +
+  coord_cartesian(ylim = c(0,1)) +
+  facet_wrap(~ condition_cats_phase) +
+  labs(title = "A) Condition X Phase Interaction",
+       x = "Condition",
+       y = "Probability",
+       fill = "Belief") +
+  raw_rating_theme()
+
+```
+
+Compile and save:
+
+```{r}
+belief_ord_3_phase_plot_ab <- belief_ord_3_phase_plot_a /
+  belief_ord_3_phase_plot_b
+
+belief_ord_3_phase_plot_ab
+
+#ggsave(filename = here::here(
+#  "figs",
+#  "figs_final",
+#  paste0(format(Sys.time(), "%Y-%m-%d_%H-%M_%S_"), "belief_ord_3_phase_plot_ab", ".png")
+#  ),
+#  plot = belief_ord_3_phase_plot_ab,
+#  width = 14,
+#  height = 10)
+```
+
+## SKIP Analysis (#4)
+
+Sticking within an *ordinal* framework, 7-categories?
+
+### SKIP Mixed Effect 7-Category Ordinal Logistic Regression w/ Phase (Frequentist)
+
+### SKIP Mixed Effect 7-Category Ordinal Logistic Regression w/ Phase (Bayesian)
+
+The 3-category ordinal model took ~1.5 hours to fit, so...maybe some other time.
+
 # Reinforcement / Suppression
 
 ## R/S Missing Data Analysis
@@ -1016,7 +1300,7 @@ rschange_mod_dat <- rschange %>%
 levels(rschange_mod_dat$rs_level_num_fac)
 ```
 
-## Analyses (#3)
+## Analyses (#4)
 
 ### Mixed Effect Logistic Regression (Frequentist)
 
@@ -1153,7 +1437,27 @@ synch %>%
 # 22 pairs / 924 have NA prop values
 ```
 
-In the paper, increase together and decrease together is within participants
+Replicate ANOVA as reported in paper? Yes. 
+
+```{r}
+paper_aov_type2ss <- rstatix::anova_test(data = synch,
+                      dv = prop,
+                      between = condition,
+                      within = c(retrieval_practice, change_direction),
+                      wid = actual_pair)
+
+paper_aov_type3ss <- rstatix::anova_test(data = synch,
+                      dv = prop,
+                      between = condition,
+                      within = c(retrieval_practice, change_direction),
+                      wid = actual_pair,
+                      type = 3)
+
+rstatix::get_anova_table(paper_aov_type2ss)
+rstatix::get_anova_table(paper_aov_type3ss)
+```
+
+Fit similar model, but via mixed effects beta regression. This has the benifit of a) respecting proportion boundaries and b) respecting nesting/dependence present in the data. I'm uncertain *either* of these tests are appropriate for power reasons (3-way interaction), but for now, let's just see what happens to the effects...
 
 ```{r}
 # zoib
@@ -1163,31 +1467,41 @@ In the paper, increase together and decrease together is within participants
 # recently implemented! exciting
 # interpretation though?
 synch_prop_cond_1 <- glmmTMB::glmmTMB(prop ~ 1 +
-                                        retrieval_practice +
-                                        change_direction +
+                                        retrieval_practice *
+                                        change_direction *
                                         condition +
-                                        # nest pairs in networks
+                                        # nest pairs in inferred networks
                                         (1 | actual_net/actual_pair),
-                                      family = glmmTMB::beta_family,
+                                      family = glmmTMB::beta_family, # default = logit
                                       zi = ~1, # for 0 inflation
                                       data = synch)
 
 summary(synch_prop_cond_1)
+exp(coefficients(synch_prop_cond_1))
 #min(synch$prop, na.rm = TRUE)
 #max(synch$prop, na.rm = TRUE)
 ```
 
+Replicates and then some - *all effects statistically significant*.
+
+Inspect further:
+
+```{r}
+
+```
+
+
 ### Beta Regression (Bayesian; Appendix B)
 
 ```{r}
-synch_prop_cond_1_brm <- brm(prop ~ 1 +
-                           retrieval_practice +
-                           change_direction +
-                           condition +
-                           (1 | actual_net/actual_pair),
-                            family = zero_inflated_beta(link = "logit"),
-                            data = synch,
-                            file = "analysis/brms_fits/synch_prop_cond_1_brm")
+#synch_prop_cond_1_brm <- brm(prop ~ 1 +
+#                           retrieval_practice +
+#                           change_direction +
+#                           condition +
+#                           (1 | actual_net/actual_pair),
+#                            family = zero_inflated_beta(link = "logit"),
+#                            data = synch,
+#                            file = "analysis/brms_fits/synch_prop_cond_1_brm")
 ```
 
 # Session Info
