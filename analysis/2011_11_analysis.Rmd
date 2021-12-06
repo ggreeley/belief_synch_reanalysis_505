@@ -1484,10 +1484,83 @@ exp(coefficients(synch_prop_cond_1))
 
 Replicates and then some - *all effects statistically significant*.
 
-Inspect further:
+Replicate plot and inspect further:
 
 ```{r}
+emmeans::emmeans(synch_prop_cond_1,
+                 specs = ~ retrieval_practice * change_direction * condition,
+                 type = "response") %>%
+  data.frame() %>%
+  filter(change_direction == "increasetog") %>%
+  ggplot(aes(x = condition, y = response, fill = retrieval_practice)) +
+  geom_bar(stat = "identity",
+           position = "dodge") +
+  facet_wrap(~ retrieval_practice)
 
+emmeans::emmeans(synch_prop_cond_1,
+                 specs = ~ retrieval_practice * change_direction * condition,
+                 type = "response") %>%
+  data.frame() %>%
+  filter(change_direction == "decreasetog") %>%
+  ggplot(aes(x = condition, y = response, fill = retrieval_practice)) +
+  geom_bar(stat = "identity",
+           position = "dodge") +
+  facet_wrap(~ retrieval_practice)
+```
+
+New plot, respecting nested structure (though very little variance in estimates between pair lines):
+
+```{r}
+synch %>%
+  predict(pred_prop = predict(synch_prop_cond_1,
+                              type = "response",
+                              re.form = NA))
+
+synch_aug <- broom.mixed::augment(synch_prop_cond_1, data = synch %>%
+                                    filter(!is.na(prop)))
+
+synch_aug %>%
+  mutate(pred_odds = exp(.fitted),
+         pred_prop = pred_odds / (1 + pred_odds)) %>%
+  ggplot(aes(x = .resid,
+             y = .fitted)) +
+  geom_point()
+
+synch_int_plot <- synch_aug %>%
+  mutate(pred_odds = exp(.fitted),
+         pred_prop = pred_odds / (1 + pred_odds)) %>%
+  # aesthetic mutates
+  mutate(condition = ifelse(condition == "control",
+                            "Control", "Experimental"),
+         change_direction = ifelse(change_direction == "increasetog",
+                                   "Increase Together", "Decrease Together"),
+         retrieval_practice = ifelse(retrieval_practice == "rppos",
+                                     "Practiced", "Not Practiced")) %>%
+  ggplot(aes(x = retrieval_practice,
+             y = pred_prop)) +
+  geom_point() +
+  geom_line(aes(group = actual_pair, color = condition)) +
+  facet_wrap(~ condition + change_direction) +
+  coord_cartesian(ylim = c(0.1, 0.5)) +
+  scale_color_manual(values = c("#000080", "darkred")) +
+  labs(x = "Statement Practice",
+       y = "Predicted Proportion",
+       color = "Condition") +
+  raw_rating_theme()
+```
+
+View and save:
+
+```{r}
+synch_int_plot
+#ggsave(filename = here::here(
+#  "figs",
+#  "figs_final",
+#  paste0(format(Sys.time(), "%Y-%m-%d_%H-%M_%S_"), "synch_int_plot", ".png")
+#  ),
+#  plot = synch_int_plot,
+#  width = 14,
+#  height = 10)
 ```
 
 
