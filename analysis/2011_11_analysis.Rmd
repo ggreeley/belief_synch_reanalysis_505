@@ -427,6 +427,7 @@ belief_change_cond_2 <- glmer(rating_change ~ 1 +
                             data = belief_logit_dat)
 
 summary(belief_change_cond_2)
+#exp(confint(belief_change_cond_2))
 ```
 
 Inclusion of covariates (item category and political views) has an interesting effect. The "political views" fixed effect is statistically significant, default category contrasts (each vs. "a") are not, and AIC and BIC increased.
@@ -1326,6 +1327,7 @@ broom.mixed::tidy(rschange_missing_cond_1) %>%
   mutate(estimate_oddratio = ifelse(effect == "fixed", exp(estimate), NA),
          .after = estimate) %>%
   select(-statistic)
+
 
 #stargazer::stargazer(rschange_missing_cond_1,
 #                     type = "latex",
