@@ -1,0 +1,762 @@
+%%%%%%%%%
+% preamble
+
+% basic packages for doc set-up
+\documentclass[12pt]{article}  %11 or 12 pt
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{csquotes}
+
+\usepackage{graphicx}
+\usepackage{pdfpages}
+
+% apa 7 is double spaced
+\usepackage{setspace}
+\doublespacing
+
+% for links to things
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=blue,      
+    urlcolor=blue,
+    citecolor=blue
+    }
+
+% reference in apa 7
+\usepackage[style=apa,sortcites=true,sorting=nyt,backend=biber]{biblatex}
+\DeclareLanguageMapping{american}{american-apa}
+
+% set margins, 1-in all sides
+%\usepackage[a4paper, total={6.5in, 9in}]{geometry}
+\usepackage[a4paper, margin=1in]{geometry}
+
+% force footnotes to bottom of page
+\usepackage[bottom]{footmisc}
+
+% fancy pages for control over headers/page numbering
+\usepackage{fancyhdr} % https://tex.stackexchange.com/questions/10043/page-number-position
+\pagestyle{fancy}
+\lhead{ANALYZING BELIEF CHANGE}
+\chead{}
+\rhead{\thepage}
+\lfoot{}
+\cfoot{}
+\rfoot{}
+\renewcommand{\headrulewidth}{0pt}
+
+% for placeholder text
+\usepackage{lipsum}
+
+% for "" that actually go the right direction
+\usepackage{dirtytalk}
+
+% for code-type verbatim typesetting in footnotes
+\usepackage{bigfoot}
+
+% for draft watermark
+%\usepackage{draftwatermark}
+%\SetWatermarkText{DRAFT}
+%\SetWatermarkScale{3}
+
+% load bib file for references
+\addbibresource{bibliography.bib}
+
+%%%%%%%%%
+% title page
+
+\begin{document}
+
+\begin{center}
+    \vspace*{4cm}
+    
+    \textbf{A quantitative exploration of what \textit{belief change} could mean and why it matters for analysis}
+    
+    \vspace{1cm}
+    Garrett D. Greeley, M.A.
+    
+    \vspace{0.5cm}
+    Stony Brook University
+    
+    \vspace{0.5cm}
+    December 6$^{th}$, 2021
+\end{center}
+
+\vspace{7cm}
+
+\singlespacing
+
+\textbf{Note}: Paper being submitted to fulfill course requirements for PSY 505. Any correspondence can be sent to Garrett D. Greeley, 100 Nicolls Rd., Stony Brook, NY 11794-2500. Email: \href{garrett.greeley@stonybrook.edu}{garrett.greeley@stonybrook.edu}.
+
+\textbf{Data}: Original data, reported by \textcite{vlasceanu_synchronization_2020}, is available on OSF \href{https://osf.io/8vjym/}{here}. This data was lightly processed manually (e.g., updating column names in Excel to make unique/informative) prior to being run through an R script for the bulk of the processing and wrangling. For convenience, the wrangled data produced by this short pipeline - the data used in all analyses/visualizations - is available in a Github repository \href{https://github.com/ggreeley/belief_synch_reanalysis_505/tree/dev}{here}, in the \say{data/analysis} folder.
+
+\textbf{Code}: A Github repository containing all code for processing/wrangling (one primary file; \say{processing} folder), analysis/visualization (one primary file; \say{analysis} folder), and for generating the manuscript (\say{writing} folder) is available \href{https://github.com/ggreeley/belief_synch_reanalysis_505/tree/dev}{here}
+
+%%%%%%%%%
+% abstract
+
+\newpage
+
+\doublespacing
+
+\begin{center}
+\textbf{Abstract}
+\end{center}
+
+% for actually apa format:
+%\vspace{-0.4cm} % remove extra spacing after major header (leave for time being [aesthetics])
+
+\noindent In this paper, I re-analyze data from a recent paper \parencite{vlasceanu_synchronization_2020} with a range of different quantitative methods, namely mixed effect logisitc and mixed effect ordinal regression. In doing so, I consider how results might change if \say{belief} and \say{belief change} are conceptualized in different ways. Likewise, I explicitly model data missingness with respect to one of the original paper's core findings. Critical results emerge across analysis. First, results do in fact change based on the conceptualization of belief/belief change. Second, belief/belief change $-$ across the definitions I examine here $-$ is systematically related to variables that were aggregated/ignored in the original study. Finally, data missingness in one of the original paper's core analyses was found to by related to a predictor central to the original study. Beyond fitting and interpreting a range of models, I introduce the methods and metrics used in the \textcite{vlasceanu_synchronization_2020} and briefly discuss the consequences of a) reasonable but varying definitions of \say{belief} and \say{belief change} and b) how excessive aggregation and/or ignoring covariates might impact conclusions.
+
+\textit{Keywords}: quantitative, multiverse, re-analysis, belief change, open code
+
+%%%%%%%%%
+% introduction
+
+\newpage
+
+\begin{center}
+    \textbf{A quantitative exploration of what \textit{belief change} could mean and why it matters for analysis}
+\end{center}
+
+%\vspace{-0.4cm} % remove extra spacing after major header (leave for time being [aesthetics])
+
+\noindent\textbf{Source Paper: Vlasceanu et al. (2020)}
+
+\noindent\textbf{Original Design \& Procedure}
+
+This is an abbreviated version of the original procedure. For more detail, see \textcite{vlasceanu_synchronization_2020}.\footnote{In the original paper, Figure 1 $-$ depicting the basics of the procedure $-$ is particularly informative. As I'm unclear on what the copyright allows, it is not reproduced here, but it may be essential to understanding this rather complicated design.} The design consisted of the following factors: condition (experimental vs. control; between-participants), selective retrieval practice of each statement by a confederate public speaker (practiced vs. not; only those in the experimental condition were exposed to this public speaker, but a given statement was either practiced or not), and the truth status of each statement (fact vs. myth; a given statement was either a fact or a myth).
+
+Participants arrived at the experiment in groups of 12. All participants began by independently rating 24 statements. These 24 statements came from four categories (six statements each; four facts and two myths from each category). From the original paper: \say{\textit{For example, a myth was that “reading in dim light can damage children’s eyes,” while a fact was that “children who spend less time outdoors are at greater risk to develop myopia.”}} $-$ page 3.
+
+Each statement was rated two times $-$ once for \textit{perceived accuracy} and once for \textit{perceived scientific support} $-$ on a 7-point, Likert-style scale ranging from 1 (not at all/definitely not) to 7 (very much so/definitely yes). In later sections, I refer to this initial rating phase as \textit{Phase \#1}.
+
+After these initial ratings were made, the procedure diverged based on condition. Participants in the experimental condition listened to a recording of a confederate selectively recalling two true statements from each category, while those in the control condition did not listen to anything. Next, irrespective of condition, participants completed a series of dyadic recalls, working in groups of two to recall the statements just rated for accuracy/scientific support. Within each 12-person network, participants completed either three or four dyadic recalls (Figure 1 in the original paper demonstrates this process clearly).
+
+Following these dyadic recalls, all participants once again independently rated each statement for perceived accuracy and scientific support. In later sections, I refer to this second rating phases as \textit{Phase \#2}. Finally, participants received a Qualtrics link a week after participating to complete ratings one more time.
+
+\noindent\textbf{Original Measures \& Metrics}
+
+The original paper by \textcite{vlasceanu_synchronization_2020} included a number of rather idiosyncratic measures. For a verbal and pictorial description of these measures, see Figure 3 on page 7 of the original paper.
+
+For the present paper, \textit{belief difference} is most critical. In the original paper, perceived accuracy ratings and scientific support ratings $-$ treated as \textit{continuous} responses $-$ were found to be highly correlated and were collapsed (via averaging)\footnote{In the original data, the reported belief ratings are all whole numbers. I'm unclear how this is possible if averaging was used to generated the scores since accuracy and scientific support ratings were not \textit{perfectly} correlated.} and $z$-scored to form \say{belief ratings} for each participant at each phase. The $z$-scoring was done to account for individual differences in how participants might use the scale. Belief differences or belief change, for a given statement and participant, was then the difference between $z$-scored beliefs. As described later, I take a very different approach to quantifying (and modeling) and belief.
+
+Another measure used by \textcite{vlasceanu_synchronization_2020} was \textit{reinforcement/suppression} (R/S) scores. These scores are determined by the series of dyadic recalls during that phase. As the definition is quite technical, here is the original description from page 6:
+
+\singlespacing
+\begin{center}
+    \say{\textit{We computed cumulative reinforcement/suppression (R/S) scores for each of the 24 initially studied beliefs for each participant as follows. If a belief was mentioned during a conversation, it received a ($+$1) score on the R/S scale. Similarly, if a belief was not mentioned during a conversation but was related to a belief that was mentioned, it received a ($-$1) score on the R/S scale. Beliefs that were unmentioned and unrelated to those mentioned received a score of 0 on the R/S scale. The final R/S score for each participant was cumulated across the three/four conversations they had in the network and was computed separately for each belief. For instance, if a belief was mentioned in all three conversations that a participant had in the network, then its cumulative R/S score was ($+$3), while if the belief was part of the category mentioned during all the conversations that the participant was engaged in but was itself never mentioned in any of the three conversations, its R/S cumulative score was ($-$3).}}
+\end{center}
+\doublespacing
+
+\noindent Because each participant completed three or four dyadic recalls, the possible values for this measure ranged from $-$4 to $+$4 (for participants that completed four dyadic recalls). Because of missingness, \textcite{vlasceanu_synchronization_2020} collapsed across negative and positive values prior to an analysis probing belief change as a function of R/S, condition, and retrieval practice. I model this missingness explicitly in a later section.
+
+Next, \textcite{vlasceanu_synchronization_2020} assessed \textit{belief change synchronicity} between all possible pairs of participants in a given 12-person network (whether or not they actually interacted; $66\:pairs/network \times 7\:networks/condition \times 2\:conditions = 924\:pairs$) by computing the proportion of beliefs that \textit{increased} for both individuals in a pair (\say{increased together}) and the proportion of beliefs that \textit{decreased} for both individuals in the pair (\say{decreased together}). Thus, higher proportions in either case indicates greater belief change synchronicity. 
+
+Finally, while not considered here, \textcite{vlasceanu_synchronization_2020} assessed dyadic memory for statements. Specifically, the authors computed the recall proportion of beliefs in terms of the number of dyadic recalls in which a belief was mentioned. For example, for a given participant, if a belief was recalled in two out of three dyadic recalls (irrespective of which partner actually recalled it), that belief was recalled at .66. Thus, for participants who engaged in three dyadic recalls, possible values for each belief should be 0 (never recalled), .33, .66, and 1 (recalled each interaction). For those who engaged in four dyadic recalls, possible values should be 0 (never recalled), .25, .50, .75, and 1 (recalled each interaction).\footnote{I had originally intended to re-analyze these data with logistic regression (e.g., outcome is binomial for each belief; recall as $n_{trials\:belief\:recalled}$ out of 3 \textit{or} 4). However, 111 out of the 168 participants had impossible values (e.g., .33 \textit{and} 0.5). Because the total number of trials for a given participant must be known to fit the model, and mixed values suggest different totals, this was impossible.}
+
+\noindent\textbf{Original Analytical Strategy}
+
+Given the nature of the design and how the original variables (e.g., ratings, outcomes) were treated, the original analyses consisted of ANOVAs. Specifically, mixed ANOVAs $-$ with condition as a between-participant factor and retrieval practice as a within-participant factor $-$ were a hallmark.
+
+%\vspace{-0.4cm}
+
+%%%%%%%%%
+% methods exp 1
+\begin{center}
+    \textbf{Present Study} % first level heading? could just do method?
+\end{center}
+
+In this paper, I re-analyze the data reported by \textcite{vlasceanu_synchronization_2020}. In doing so I employ a variety of analytical tools in a way that is roughly consistent with a multiverse analysis approach \parencite{steegen_increasing_2016}.\footnote{I re-analyze the data a number of ways, changing modeling approaches and/or how a variable is conceptualized, to see how results might differ. While a traditional multiverse approach is intended to be exhaustive, the current investigation is not. Instead, I focus on a handful of \say{reasonable options} that a belief researcher might choose from.} Specifically, I consider how the original results, reported by \textcite{vlasceanu_synchronization_2020}, might be \textit{different} as a function of quantification and modeling choices. To that end, I focus primarily on the modeling of belief change (\textbf{Analyses \#1-\#3}). Further, I probe potentially systematic missingness (e.g., data missing not at random $-$ MNAR) in one of the original paper's central analyses (R/S; \textbf{Analysis \#4}). Finally, I \say{replicate} one of the original analyses using a more appropriate method (belief synchronicity; \textbf{Appendix A}).
+
+\begin{center}
+    \textbf{Method} % first level heading? could just do method?
+\end{center}
+
+\noindent\textbf{Current Analytical Approach}
+
+The majority of the core analyses reported in this paper focus on different conceptualizations of \say{belief change,} while additional analyses focus on explicit modeling of data missingness and re-analysis with more appropriate methods. Here, I introduce the rationale behind my modeling approach(s) analysis-by-analysis.
+
+\noindent\textbf{General Notes on Quantification and Aggregation}
+
+\noindent\textbf{\textit{\say{Belief} Quantification}}
+
+In the original paper, \textcite{vlasceanu_synchronization_2020} both a) treated perceived accuracy and scientific support ratings as continuous and b) collapsed across them to form \say{belief} ratings. In the present investigation, I take a different approach. First, across analyses, I consider accuracy ratings and scientific support ratings separately. That is, each statement is considered to have been rated twice at each phase (as was actually the case), once for perceived accuracy and once for perceived scientific support. Doing so cut down on unnecessary aggregation and provided an additional factor on which to make comparisons (e.g., rating type). Any differences that emerge $-$ such as differential belief change as a function of rating type $-$ are important for theoretical reasons (e.g., respondents more likely to update scientific beliefs than accuracy beliefs?) and statistical reasons (e.g., despite positive correlation, aggregation should \textit{not} be used).
+
+Second, and perhaps more critically, I do not treat these accuracy/scientific support ratings as continuous, and I likewise do not treat change in these ratings as continuous.\footnote{I do, however, use the original conceptualization of belief change in my re-analysis of belief synchronicity (\textbf{Appendix A}), both because the goal of that analysis is to replicate the original analysis (just using a more appropriate model) and because the public data is processed that way.} Depending on the analysis, belief change is modeled as binary (e.g., from Phase \#1 to Phase \#2, a rating changed or it did not) or as being ordinal (e.g., from Phase \#1 to Phase \#2, a rating decreased, stayed the same, or increased). In one set of analyses, ratings are treated as ordinal \textit{within} a given phase (e.g., a statement is rated as not believed, neutral, or believed at Phase \#1 and is again rated as not believed, neutral, or believed at Phase \#2).\footnote{While possible (and perhaps desirable) to keep the ratings in the original 1-7 units \textit{and} treat them as ordinal, that would be an intense foray into ordinal modeling for me, and this is already an ambitious series of models. Likewise, the Bayesian ordinal models I fit took $\sim$ 1.5 hours (on a 2019 i9 chip with 16GM RAM) with three ordinal levels.} In this later case, \say{phase} is considered a within-participant variable for which the coefficient indicates a change in the probability of a rating being in an ordinal category (more details on this below). For a visual depiction of the \textit{raw} ratings $-$ across all participants and statements $-$ see \textbf{Figure 1} on the next page.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FIGURE 1 - RATING HEATMAPS
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+\textbf{Figure 1}
+
+\textit{Participant Level Accuracy and Scientific Support Ratings for All Items}
+
+\vspace{0.5cm}
+
+\hspace{-1.5cm}\includegraphics[scale=0.12]{writing/manuscript/2021-11-30_10-15_50_raw_rating_plot_a.png}
+
+\hspace{-1.5cm}\includegraphics[scale=0.12]{writing/manuscript/2021-11-30_10-15_52_raw_rating_plot_b.png}
+
+\singlespacing
+\noindent\textit{Note}. All 168 participants ($y$-axis) rated 24 statements ($x$-axis) for accuracy and scientific support on a Likert-style, 1-7 scale. The statements, which came from four categories (\say{a,} \say{h,} \say{n,} and \say{v}; six statements each), were rated before recalling them with others (\textbf{Top Panel; A}) and after recalling them with others (\textbf{Bottom Panel; B}).
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% END FIGURE 1
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\doublespacing
+
+\noindent\textbf{\textit{Inclusion of Statement Truth Status (Myth or Fact) as Predictor}}
+
+Regarding the truth status of each statement, recall that within each category, two statements were false (myths) and four were true (facts). \textcite{vlasceanu_synchronization_2020} analyzed ratings between these items, found them to be similar (no statistically significant difference), and collapsed across them. Thus, statement truth status was ignored as a factor in all subsequent analyses. It stands to reason, however, that while belief ratings may be similar, these rating may be updated or change differently. Here, I do not collapse across statement truth status and instead treat this factor as a within-person effect. Just as with rating type, any differences that emerge between statements that are true versus false are theoretically and statistically important $-$ facts or myths may change differently across phases and, if they do, they should not be aggregated despite similar ratings.
+
+\noindent\textbf{\textit{Inclusion of Participant Political Views as Predictor}}
+
+In the original paper, \textcite{vlasceanu_synchronization_2020} asked participants about their political views. While this is unmentioned in the paper, the data suggests participants were asked to rate their political views on a scale from 1 (very liberal) to 9 (very conservative). Observed values ranged from 1 to 7. While this was excluded from all original analyses, it was included here as a secondary covariate of interest (see below for details). Inclusion in this instance was motivated by the question $-$ is belief change moderated by one's political views?
+
+\noindent\textbf{\textit{Exclusion of Confederate Public Speaker Retrieval Practice as Predictor}}
+
+Lastly, while \textcite{vlasceanu_synchronization_2020} were focused quite intently on the effect of retrieval practice (e.g., whether or not a given statement was practiced by a confederate public speaker), I ignore this factor in analyses of belief change (\textbf{Analyses \#1-\#3}). This was a principled decision $-$ since this variable was fully confounded with condition (only those in the experimental condition listened to a public speaker selectively retrieve items; it is what \textit{made} the experimental condition the experimental condition), including both factors seemed superfluous. Thus, by included condition in these models, any observed condition effects should be due to participants in the experimental condition listening to a confederate public speaker selectively retrieve items.\footnote{Including retrieval practice instead of or in addition to condition might still be of interest, though, particularly if one is interested primarily in how (public) retrieval practice impacts belief change for specific items.} In other models (\textbf{Analysis \#4} and \textbf{Appendix A}), however, I include this variable either because it is particularly relevant to the question or because it is part of a replication. 
+
+\noindent\textbf{General Note on Statistical Frameworks}
+
+Each analysis reported here, with the exception of the belief synchronization replication in \textbf{Appendix A}, was fit in both frequentist and Bayesian frameworks. I did this for several reasons. First, these models are quite complicated and I wanted to see if multiple approaches converged on the same estimates. Second, some models needed to be fit with relatively niche libraries that produced model objects (\verb+ordinal::clmm+) that were difficult to extract information from (e.g., predicted ordinal category probabilities), while the same task with an equivalent Bayesian model (via \verb+brms::brm+ and \verb+emmeans::emmeans+) was straightforward. Finally, I simply wanted more practice fitting Bayesian models.
+
+\noindent\textbf{General Note on Random Effects}
+
+Across \textit{all} models, the data included several sources of dependence that needed to be accounted for with random effects \parencite{bliese_short_nodate,gelman2006,legler_beyond_nodate}. Specifically, because all participants rated all statements (within participant dependence; ratings provided by a given participant may be more similar than ratings between participants), and all statements were rated multiple times (statement dependence; ratings for a given statement may be more similar than those between statements), a specific random effect structure was called for: \textit{crossed random effects}, for participants and statements. Likewise, we may consider both participants and statements to be a random subset/sample of broader sets (e.g., of humans and possible statements).\footnote{Additional notes on this $-$ 1) Statements could be considered \textit{nested} within categories, but there are only four categories represented in the data; 2) In \textbf{Analysis \#3}, random participant and/or item slopes on phase (e.g., varied belief trajectories across phases) could be included if afforded by degrees of freedom...maybe some other time.} While I do test and report the variability in these random intercepts in \textbf{Analysis \#1}, they are included in all models on principle; irrespective of variability significance, these data are structured in way that \textit{should} involve some degree of dependence, so I modeled it as such. 
+
+\noindent\textbf{Belief Change (Analysis \#1-\#3)}
+
+\noindent\textbf{\textit{Binary Belief Change (Analysis \#1)}}
+
+In the first set of analyses, I model change in belief (accuracy and scientific support ratings) from Phase \#1 to Phase \#2 as \textit{binary}. For each participant and each statement, their rating either changed (1) or it did not (0). This conceptualization of belief change forgoes the notion of \textit{degree} of belief and focuses entirely on stability. That is, these models consider belief change (or not) as a function of three critical predictors (condition, rating type, and statement truth status) and two other covariates (item category and political views). Along with the crossed random effects described above, this amounted to a \textit{mixed effect logistic regression}. Here, item category and political views were included primarily as factors to be controlled for $-$ and as they were not considered in the original paper, should not matter $-$ although political views was of some exploratory interest. For example, does binary belief change (e.g., changing belief at all) vary as a function of where one falls on the political spectrum?
+
+\noindent\textbf{\textit{Ordinal Belief Change (Analysis \#2)}}
+
+In the second set of analyses, I model change in belief (accuracy and scientific support ratings) from Phase \#1 to Phase \#2 as \textit{ordinal}. For each participant and each statement, their rating either decreased, remained the same, or increased. This conceptualization of belief change once again forgoes the notion of degree of belief and focuses instead on \textit{direction}. That is, these models consider belief change direction as a function of three critical predictors (condition, rating type, and statement truth status) and two other covariates (item category and political views). Along with the crossed random effects described above, this amounted to a \textit{mixed effect ordinal logistic regression}. Once again, item category and political views were included primarily as factors to be controlled for, though political views was still of interest. For example, does belief change direction (e.g., probability of increasing belief) vary as a function of where one falls on the political spectrum?
+
+\noindent\textbf{\textit{Ordinal Belief Change Across Phases (Analysis \#3)}}
+
+In the third set of analyses, I model change in belief (accuracy and scientific support ratings) from Phase \#1 to Phase \#2 as \textit{ordinal}, but across phases and differently from the second set of analyses. For each participant and each statement \textit{at each phase}, their rating was either \say{do not belief} [original rating 1, 2, or 3], \say{neutral} [original rating 4], or \say{do believe} [original rating 5, 6, or 7]. In these models, these ordinal categories served as the dependent variable, which was considered as a function of several critical predictors (condition, phase, a condition $X$ phase interaction, rating type, and statement truth status) and two other covariates (item category and political views). Along with the crossed random effects described above, this amounted to a \textit{mixed effect ordinal logistic regression}, though with different ordinal categories and a different interpretation than the previous ordinal model. Here, the condition $X$ phase interaction was of most interest, i.e., would participants in the experimental condition update beliefs differently from those in the control condition across phases? Because of the ordinal treatment of the ratings, \say{updating differently} would be evidenced by different probabilities of being in a higher belief category (neutral or believing, relative to not believing) between conditions/across phases. Finally, like previous models, item category and political views were included, with political views still of interest for the same reasons.
+
+\noindent\textbf{R/S Missingness(Analysis \#4)}
+
+Switching attention to a different issue $-$ analysis of missingness $-$ the forth set of models considers data missingness (binary; missing (1) or not (0)) as a function of R/S level, condition, and whether items were practiced by a public speaker. Along with the crossed random effects described above, this amounted to a \textit{mixed effect logistic regression}.
+
+\noindent\textbf{Belief Synchronicity (Extra Analysis; Appendix A)}
+
+In the final analysis $-$ not included in the main text $-$ I replicate the belief synchronicity analysis reported by \textcite{vlasceanu_synchronization_2020} using both a) the original approach (mixed ANOVA) and b) a more statistically appropriate approach. Specifically, I modeled the same data with a mixed effect zero-inflated beta regression. As this analysis is not central to the main points of the paper (belief/belief change measurement and related analytical decisions), all further discussion on this analysis relegated to \textbf{Appendix A}.
+
+\noindent\textbf{Code and Data Availability}
+
+The original data from \textcite{vlasceanu_synchronization_2020} is available publicly on the Open Science Framework (OSF; project \href{https://osf.io/8vjym/}{here}). The code for reproducing the present analysis results, figures, tables, and the manuscript itself is available on my GitHub (repository \href{https://github.com/ggreeley/belief_synch_reanalysis_505/tree/dev}{here}).
+
+%%%%%%%%%
+% methods exp 1
+\begin{center}
+    \textbf{Results} % first level heading? could just do method?
+\end{center}
+
+%\vspace{-0.4cm} % remove extra spacing after major header (leave for time being [aesthetics])
+
+\noindent\textbf{Reporting Details \& Model Building}
+
+Given the complexity of the current models, I report analyses in a variety of ways to (hopefully) ease interpretation. Within each section, with the exception of \textbf{Appendix A}, I report a table with coefficients from the frequentist models. These coefficients are always the log-odds (logit units) and respective standard errors. The corresponding odds ratios (OR), p-values, and 95\% confidence intervals (95\% CIs) are reported in text. Further, within each section, I include several figures. When indicated (\textbf{Analysis \#2 and \#3}, figures are based on predictions stemming from the Bayesian models, though point estimates were always the same as the equivalent frequentist models. In \textbf{Analysis \#1 and \#4}, figures are based on predictions from the frequentist models.\footnote{For the ordinal models (\textbf{Analysis \#2 and \#3}), I wanted to plot the predicted probability of a rating falling into a given ordinal category at each level/combination of levels of the relevant predictors. Extracting this information was easy with \verb|brms::brm| fits, but I could not find a way to do the same with \verb|ordinal::clmm| fits, so these plots are based on \verb+brm+ models. For example, at each combination of the condition $X$ phase interaction in \textbf{Analysis \#3}, I wanted to demonstrate how likely each ordinal category was $-$ perhaps the most intuitive way to communicate such a model (better that ORs, I think).}
+
+Default priors in \verb+brms::brm+ were used for all Bayesian models. For frequentist models, the criterion for significance was set to .05 \textit{a priori} and models were fit via maximum likelihood estimation (MLE). For each of the core analyses (\textbf{Analysis \#1-\#3}), I first fit a null/unconditional model to assess intercept variability for the crossed random effects, though I only report this information in \textbf{Analysis \#1} (see the above \textbf{General Note on Random Effects} for justification). Following these null models, I fit a) one conditional model with the central predictors, followed by b) the same conditional model but adding the additional covariates (always item category and political views). In every case, the political views effect was statistically significant, so it is always the full model (e.g., with item category and political view) that is reported.\footnote{Interestingly, AIC and BIC model fit indices didn't show marked reduction (or actually increased slightly following inclusion of the extra covariates). However, given that political views were ignored in the original study (essentially collapsed across), but a trend is suggested here, I erred on the side of inclusion and did not perform formal model comparisons (e.g., Likelihood Ratio Tests).} For \textbf{Analysis \#4} and \textbf{Appendix A}, only conditional models were fit given the goals of the analyses.
+
+\noindent\textbf{Software}
+
+R \parencite{ritself} was used for all analyses and the majority of the data processing (see GitHub repository linked above for details). A variety of R libraries were used for processing, analysis, and visualization, including \verb+tidyverse+ (\textcite{tidyverse}; namely \verb+dplyr+, \verb+ggplot2+, and \verb+tidyr+), \verb+lme4+ \parencite{lme4}, \verb+ordinal+ \parencite{ordinal}, \verb+brms+ \parencite{brm1, brm2}, \verb+glmmTMB+ \parencite{glmmtmb}, \verb+rstatix+ \parencite{rstatix}, and \verb+emmeans+ \parencite{emmeanse}.
+
+\noindent\textbf{Participants}
+
+Participants included 168 Princeton University students. Within each condition, this amounted to seven, 12-person networks. The sample consisted of 110 (65.5\%) Females and 58 (34.5\%) Males. The average age was 21.4 years ($SD = 4.95,\:Minimum = 18,\:Maximum = 55$. Political views ranged from 1 (very liberal) to 7 (quite conservative; unclear on specific levels but scale was 1-9), with the average being 3.27 ($SD = 1.45$).
+
+\noindent\textbf{Analysis \#1: Mixed Effect Logistic Regression - Binary Belief Change}
+
+The null/unconditional model with crossed random effects for participants and statements suggested a reasonable degree of variation in participant intercepts (0.29) and item intercepts (0.10). With these variances, the intraclass correlation coefficient (ICC) was computed several ways. As residual deviance in the logistic case is fixed at $\frac{\pi^{2}}{3}$, the ICC for either random effect (ignoring the other) can be computed as, e.g., $\frac{random\:effect\:\#1\:variance}{random\:effect\:\#1\:variance + \frac{\pi^{2}}{3}}$ or by combining the random effect variances for $k$ random effects, e.g., $\frac{\sum\limits_{k} random\:effect\:variances}{\sum\limits_{k} random\:effect\:variances + \frac{\pi^{2}}{3}}$. Using these formulae yielded the following ICCs: participants = 0.08, items = 0.03, combined = 0.105. Thus, approximately 10.5\% of the variation in binary belief change was between participants/items.\footnote{A custom function for computing ICC for specific random effects in a logistic context is available in ./analysis/functions.R within the repository for this project. The combined random effect computation is automatically implemented by \verb|performance::icc|.}
+
+Moving to fixed effects, model coefficients are included in \textbf{Table 1} and results are presented visually in\textbf{Figure 2}. First, there was \textit{not} a significant effect of condition, OR = 0.86, $p$ = .09811. This indicates that participants in condition \say{2} (presumably the control condition)\footnote{There was no codebook available and this section of the data had condition coded as \say{1} and \say{2} $-$ later results suggest that condition \say{2} is the control condition} were 14\% \textit{less likely} than those in condition \say{1} to change their beliefs across phases, holing all other predictors constant. There was a significant effect of rating type, such that beliefs were 15\% more likely to change when statements were rated for scientific accuracy (relative to when rated for accuracy; OR = 1.15, p = .0026), holding all other predictors constant. While not a particularly notable OR, this suggests that participants may be more likely to change believes regarding perceived scientific support than perceived accuracy following a series of dyadic interactions. Regarding statement truth status, there was not a significant difference between facts and myths, holding all other predictors constant, OR = 0.85, $p$ = .2156. This suggests that (binary) changes in perceived accuracy and scientific support do not vary as a function of statement truth status (i.e., myths are not more or less likely than facts to change across phases). 
+
+Switching attention to the less critical $-$ though still potentially interesting $-$  covariates, there was no difference between statement categories. While categories \say{h,} \say{n,} and \say{v} were slightly less likely than category \say{a} to experience binary belief change (holding other predictors constant $-$ respective ORs and [$p$-values]: 0.80 [.2045], 0.83 [.2873], 0.84 [.3229]), none of the differences were statistically significant (this is good). Interestingly, there was a significant effect of participant political views, holding other predictors constant, OR = 1.07, $p$ = .0453. Thus, for a one-unit increase in political views (e.g., increasing conservatism), the odds of changing belief ratings is multiplied by 1.07.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TABLE 1 - MODEL RESULTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+\textbf{Table 1}
+
+\textit{Full, Mixed Effects Logistic Regression (Analysis \#1)}
+
+\vspace{0.5cm}
+
+% thank you stargazer
+\begin{table}[!htbp] \centering 
+  %\caption{} 
+  %\label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{1}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-2} 
+\\[-1.8ex] & Rating Change \\ 
+\hline \\[-1.8ex] 
+ Condition (2) & $-$0.16 \\ 
+  & (0.09) \\ 
+  & \\ 
+ Rating Type (Science) & 0.14$^{**}$ \\ 
+  & (0.05) \\ 
+  & \\ 
+ Fact or Myth (Myth) & $-$0.17 \\ 
+  & (0.14) \\ 
+  & \\ 
+ Item Category (H vs. A) & $-$0.23 \\ 
+  & (0.18) \\ 
+  & \\ 
+ Item Category (N vs. A) & $-$0.19 \\ 
+  & (0.18) \\ 
+  & \\ 
+ Item Category (V vs. A) & $-$0.18 \\ 
+  & (0.18) \\ 
+  & \\ 
+ Political Views & 0.07$^{*}$ \\ 
+  & (0.03) \\ 
+  & \\ 
+ Intercept & 0.35 \\ 
+  & (0.18) \\ 
+  & \\ 
+\hline \\[-1.8ex] 
+Observations & 8,064 \\ 
+Log Likelihood & $-$5,290.77 \\ 
+Akaike Inf. Crit. & 10,601.54 \\ 
+Bayesian Inf. Crit. & 10,671.49 \\ 
+\hline 
+\hline \\[-1.8ex]
+\end{tabular} 
+\end{table} 
+
+\singlespacing
+\textit{Note}. $^{*}p < .05$, $^{**}p < .01$, $^{***}p < .001$. Coefficients are log-odds and respective (standard errors). 
+%\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% END TABLE 1
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%\doublespacing
+%Stuff
+
+%Stuff
+
+%Stuff
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FIGURE 2 - MODEL 1 POPULATION EFFECTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+\doublespacing
+
+\textbf{Figure 2}
+
+\textit{Change Probabilities: Full, Mixed Effects Logistic Regression}
+
+\vspace{0.5cm}
+
+\hspace{-1.5cm}\includegraphics[scale=0.12]{writing/manuscript/2021-12-01_15-47_26_logit_mod_population_effects.png}
+
+\singlespacing
+\noindent\textit{Note}. Frequentist mixed effect logistic regression results. $y$-axis is predicted probability of changing rating (higher is more likely). All subplots (\textbf{A-F}) are main effects averaged across levels of the other predictors. Regarding \textbf{F}, no interaction was explored but change probability is viewed as a function of participant political views, condition, and statement truth status.
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% END FIGURE 2
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\doublespacing
+
+\noindent\textbf{Analysis \#2: Mixed Effect Ordinal Logistic Regression - Ordinal Belief Change}
+
+While modeling changes in perceived accuracy and scientific support ratings as binary $-$ a rating is changed or it is not $-$ is reasonable, a richer way to conceptualize such belief change is as ordinal. That is, from Phase \#1 to Phase \#2, a rating may increase, decrease, or stay the same. To paraphrase \textcite{burkner_ordinal_2019}, this is ordinal because the categories are ordered (e.g., decrease, same, increase) and \textit{not} metric/continuous because there is no known \say{distance} between the categories. This set of analyses uses such an ordinal framework.
+
+Specifically, these models are cumulative ordinal models such that they assume a cumulative normal distribution in a latent space over the observed categories that are sliced (\say{partitioned}) by the categories. The location of these partitions (\textit{thresholds}) are analogous to intercepts. The probability that a response is a given ordinal category is the area under the curve for a given partition (see \textcite{burkner_ordinal_2019}, Figure 1 for more details on this). With a logit-link function, coefficients can be transformed into ORs that can generally be interpreted $-$ relative to the reference group/unit change $-$ as the odds of being in a higher category. In the present context, this means positive coefficients/ORs indicate that, relative to the reference group/for a unit-change increase, one is more likely to keep the rating \textit{the same} or \textit{increase} the rating, relative to \textit{decreasing} the rating.\footnote{This brand of interpretation is modified from the always helpful \href{https://stats.idre.ucla.edu/r/dae/ordinal-logistic-regression/}{UCLA Stats}}. Finally, these models assume \say{proportional odds}, such that the effect of the predictors are assumed to be the same $-$ \textit{proportional} $-$ across levels of the ordinal outcome (though this assumption is sometimes tenuous; see \textcite{burkner_ordinal_2019}).
+
+While a null model was fit (participant and statement variance similar to previous model; 0.29 and 0.11, respectively), random effects in this context are not discussed further. Likewise, while a conditional model was fit with only the critical predictors (condition, rating type, statement truth status; AIC = 16673), the second conditional model included statement category and the political views variable. While the fuller model \textit{increased} AIC ever so slightly (to AIC = 16675), this more complete model is the one interpreted here. In addition to the ORs reported immediately below, coefficients are included in \textbf{Table 2} and the predicted probability of each ordinal category $-$ as a function of several of the predictors $-$ is included in \textbf{Figure 3} (note how the bars in a given facet/level of a predictor should sum to 1).
+
+First, modeling belief (rating) change as ordinal, there \textit{was} a significant effect of condition, holding other predictors constant, OR = 0.73, $p < .001$. That is, condition \say{2,} likely to control group, was 27\% less likely to keep ratings the same or increase beliefs (e.g., assuming condition \say{1} is the experimental condition, listening to a confederate public speaker selectively retrieve some true items increased the likelihood that ratings would stay the same or increase). Likewise, there was a significant effect of rating type (holding other predictors constant; OR = 0.84, $p < .001$), and statement truth status (holding other predictors constant; OR = 0.75, $p < .001$). Thus, when items were rated for scientific support, ratings were less likely to stay the same/increase. Likewise, myths were less likely than facts to stay the same/increase in belief (true statements more likely to experience a this positive shift). Framed another way: when statements were rated for accuracy and when statements were facts, their ratings were more likely to stay the same or increase, relative to decrease. \textbf{Figure 3}, depicting the predicted probabilities stemming from an equivalent Bayesian model, suggests these effects are mostly driven by differences in \textit{increase} probabilities.
+
+Switching again to the additional covariates, there was not a significant effect of statement category holding other predictors constant (\say{a} vs. \say{h} OR = 1.16, $p$ = .3945; \say{a} vs. \say{n} OR = 1.29, $p$ = .1638; \say{a} vs. \say{v} OR = 1.29, $p$ = .1549). This once again suggests norming \say{worked} in this context, such that belief change direction does not vary as a function of statement category. Lastly, there was not a significant effect of participant political views, holding other predictors constant, OR = 1.06, $p$ = .0683.footnote{To quote \textit{Get Smart}: Missed it by \textit{that} much!} Thus, for a one-unit increase in political views (e.g., increasing conservatism), the odds of a rating staying the same or increasing (vs. decreasing) is multiplied by 1.06. More plainly, participants with higher levels of political views (e.g., more conservative) are slightly more likely to increase belief between phases than those with lower levels of political views (e.g., more liberal). \textbf{Figure 3-D} demonstrates this visually.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TABLE 2 - ORDINAL MODEL RESULTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+\textbf{Table 2}
+
+\textit{Full, Mixed Effects Ordinal Logistic Regression (Analysis \#2)}
+
+\vspace{0.5cm}
+
+% thank you stargazer
+\begin{table}[!htbp] \centering 
+  %\caption{} 
+  %\label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{1}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-2} 
+\\[-1.8ex] & Rating Direction (Decrease/Same/Increase) \\ 
+\hline \\[-1.8ex] 
+ Condition (2) & $-$0.32$^{***}$ \\ 
+  & (0.09) \\ 
+  & \\ 
+ Rating Type (Science) & 0.17$^{***}$ \\ 
+  & (0.04) \\ 
+  & \\ 
+ Fact or Myth (Myth) & $-$0.29$^{*}$ \\ 
+  & (0.14) \\ 
+  & \\ 
+ Item Category (H vs. A) & $-$0.15 \\ 
+  & (0.18) \\ 
+  & \\ 
+ Item Category (N vs. A) & $-$0.25 \\ 
+  & (0.18) \\ 
+  & \\ 
+ Item Category (V vs. A) & $-$0.26 \\ 
+  & (0.18) \\ 
+  & \\ 
+ Political Views & 0.06 \\ 
+  & (0.03) \\ 
+  & \\ 
+ \hline \\[-1.8ex] 
+  & \\
+ Threshold 1 (Decrease $\rightarrow$ Stay Same) & $-$1.35 \\ 
+  & (0.18) \\ 
+  & \\ 
+ Threshold 2 (Stay Same $\rightarrow$ Increase) & 0.64 \\ 
+  & (0.18) \\ 
+%\hline \\[-1.8ex] 
+
+\hline 
+\hline \\[-1.8ex]
+\end{tabular} 
+\end{table} 
+
+\singlespacing
+\textit{Note}. $^{*}p < .05$, $^{**}p < .01$, $^{***}p < .001$. Coefficients are log-odds and respective (standard errors).
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% END TABLE 2
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\doublespacing
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FIGURE 3 - MODEL 2 POPULATION EFFECTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+\textbf{Figure 3}
+
+\textit{Category Probabilities: Full, Bayesian Mixed Effects Ordinal Logistic Regression}
+
+\vspace{0.5cm}
+
+\hspace{-1.5cm}\includegraphics[scale=0.12]{writing/manuscript/2021-12-03_09-37_54_brms_ord_mod_population_effects.png}
+
+\singlespacing
+\noindent\textit{Note}. All panels (\textbf{A-D}) show the probability of belief change direction as a function of the variable on the $x$-axis, holding other variables at baseline (condition = 1, rating type = accurate, fact or myth = fact, political views = 0 [of scale but would be close to \say{very liberal}]).
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FIGURE 3 - MODEL 2 POPULATION EFFECTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\doublespacing
+
+\noindent\textbf{Analysis \#3: Mixed Effect Ordinal Logistic Regression - Ordinal Change by \textit{Phase}}
+
+This set of models is very similar to the mixed effect ordinal logistic regression just reported and the same assumptions apply (e.g., cumulative normal distribution in a latent space over observed ordinal categories, proportional odds). However, these models are different in two major ways. As described earlier, these models a) bin ratings at each phase as \say{not believed} [rating 1, 2, or 3], \say{neutral} [rating of 4], or as \say{believed} [rating of 5, 6, or 7] and b) phase is considered a fixed effect.
+
+Bypassing the reporting of random effects for the same reason as mentioned above, I fit three conditional models. The first included the primary predictors (condition, rating type, statement truth status, and phase) with no interaction, the second included the same predictors plus the additional covariates (statement category and political views), and the third included the same predictors as the second model but with a condition $X$ phase interaction (AICs, respectively: 28994, 28993, 28972). As the interaction was of particular interest, specifically for probing differential belief change as a function of condition, it is the third model that I report here.
+
+First, there was no baseline difference in belief ratings between condition (e.g., the conditional effect of condition, holding phase at Phase \#1; OR 1.17, $p$ = .1649). Thus, while condition \say{2} is slightly more likely to be neutral or believe statements (relative to \textit{not believe} at Phase \#1, this difference is not statistically significant. Second, there was a significant conditional effect of phase, holding condition at \say{1} (OR = 1.66, $p < .001$). That is, for those in the (presumambly) experimental condition, statements were \%66 more likely to be neutral or believed at Phase \#2 than in Phase \#1. 
+
+Most critically, the condition $X$ phase interaction was significant (OR = 0.73, $p < .001$). In lieu of interpreting this coefficient, \textbf{Figure 4-A} suggests that those in condition \say{1} are more likely to positively update beliefs from Phase \#1 to Phase \#2 than those in condition \say{2.} Assuming that condition \say{1} is the experimental condition, this would indicate that listening to a confederate public speaker selectively recall a subset of true statements made it \textit{more likely} to switch from not believing/being neutral to believing following a series of dyadic interactions.
+
+For the non-interacting central predictors (rating type and statement truth status), neither effect was significant, holding all other predictors \textit{and} the interaction constant\footnote{\href{https://stats.stackexchange.com/questions/303716/are-regression-coefficients-in-a-model-with-interactions-all-made-conditional-o}{https://stats.stackexchange.com/questions/303716/are-regression-coefficients-in-a-model-with-interactions-all-made-conditional-o}}. Within this modeling framework, when statements were rated for scientific accuracy, they were no more or less likely to be neutral/believed (vs. not believed) than when they are rated for accuracy (OR = 1.02, $p$ = .3834). Likewise, statements that were myths $-$ though slightly (20\%) less likely to be neutral/believed (vs., not believed) $-$ did not differ significantly from statements that were facts (OR = 0.79, $p$ = .4238).\footnote{Either of these variables would be interesting to see interacting with phase (e.g., different belief updating across phases as a function of myth/fact or rating type?) However, detecting interactions often requires a sample size that is much larger than what is needed to detect main effects $-$ see this great \href{https://statmodeling.stat.columbia.edu/2018/03/15/need-16-times-sample-size-estimate-interaction-estimate-main-effect/}{blog post} from Andrew Gelman. While a simulation could shed light on the $N$ needed for such effects in this context, that is well-beyond the scope of this paper. Here, I focus only on the critical condition $X$ phase interaction (but see beta regression replication in \textbf{Appendix A}).} 
+
+As for the additional covariates, there was (once again) not a significant effect of statement category, holding all other predictors and the interaction constant (\say{a} vs. \say{h} OR = 0.95, $p$ = .8989; \say{a} vs. \say{n} OR = 0.78, $p$ = .5261; \say{a} vs. \say{v} OR = 0.69, $p$ = .3316). Conversly, there \textit{was} a significant effect of political views, holding all other predictors and the interaction constant (OR = 1.11, $p$ = .0077). So, for a one-unit increase in political views (e.g., increasing conservatism), the odds of being neutral or believing (relative to not believing) are multiplied by 1.11. This is, to some degree, consistent with previous analyses and suggests that more conservative participants are more likely than more liberal participants to believe the statements. While no political views $X$ phase interaction was explored, this relationship is depicted visually in \textbf{Figure 4-B}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TABLE 3 - ORDINAL MODEL RESULTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+\textbf{Table 3}
+
+\textit{Full, Mixed Effects Ordinal Logistic Regression (Across Phase; Analysis \#3)}
+
+\vspace{0.5cm}
+
+% thank you stargazer
+\begin{table}[!htbp] \centering 
+  %\caption{} 
+  %\label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{1}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-2} 
+\\[-1.8ex] & Belief (Don't/Neutral/Do) \\ 
+\hline \\[-1.8ex] 
+ Condition (When Phase $=$ 1) & 0.16 \\ 
+  & (0.11) \\ 
+  & \\ 
+ Phase (When Condition $=$ 1) & 0.51$^{***}$ \\ 
+  & (0.05) \\ 
+  & \\ 
+ Condition $\times$ Phase & $-$0.31$^{***}$ \\ 
+  & (0.06) \\ 
+  & \\ 
+ Rating Type (Science) & 0.03 \\ 
+  & (0.03) \\ 
+  & \\ 
+ Fact or Myth (Myth) & $-$0.23 \\ 
+  & (0.29) \\ 
+  & \\ 
+ Item Category (H vs. A) & $-$0.05 \\ 
+  & (0.39) \\ 
+  & \\ 
+ Item Category (N vs. A) & $-$0.24 \\ 
+  & (0.39) \\ 
+  & \\ 
+ Item Category (V vs. A) & $-$0.37 \\ 
+  & (0.39) \\ 
+  & \\ 
+ Political Views & 0.10$^{**}$ \\ 
+  & (0.04) \\ 
+  & \\ 
+ \hline \\[-1.8ex] 
+  & \\
+ Threshold 1 (Don't Believe $\rightarrow$ Neutral) & $-$0.58 \\ 
+  & (0.32) \\ 
+  & \\ 
+ Threshold 2 (Neutral $\rightarrow$ Do Believe) & 0.20 \\ 
+  & (0.32) \\ 
+%\hline \\[-1.8ex] 
+
+\hline 
+\hline \\[-1.8ex]
+\end{tabular} 
+\end{table} 
+
+\singlespacing
+\textit{Note}. $^{*}p < .05$, $^{**}p < .01$, $^{***}p < .001$. Coefficients are log-odds and respective (standard errors).
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% END TABLE 3
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\doublespacing
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FIGURE 4
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+\textbf{Figure 4}
+
+\textit{Category Probabilities: Full, Bayesian Mixed Effects Ordinal Logistic Regression}
+
+\vspace{0.5cm}
+
+\hspace{-1.5cm}\includegraphics[scale=0.12]{writing/manuscript/2021-12-04_15-57_35_belief_ord_3_phase_plot_ab.png}
+
+\singlespacing
+\noindent\textit{Note}. \textbf{Top Panel (A)}: Condition $X$ phase interaction, with belief probability on the $y$-axis. \textbf{Bottom Panel (B)}: Belief probability as a function of political views (higher values = more conservative). The interaction was not explored, but this relationship is viewed as a function of phase.
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FIGURE 4
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\doublespacing
+
+\noindent\textbf{Analysis \#4: Mixed Effect Logistic Regression - R/S Systematic Missingness}
+
+This analysis (single model) is more straightforward than previous analyses and is included as an additional check on the aggregation used by \textcite{vlasceanu_synchronization_2020}. While previous models indirectly combat and assess the effect of aggregation by including variables ignored in the original paper (e.g., facts and myths, rating type), this model directly assesses missingness in one of the original papers core analyses - one that considered belief change as a function of R/S scores.
+
+To briefly recap, lower R/S scores ($-$3, as low as $-$4) indicate that a statement was related to a statement mentioned during three or four dyadic interactions, but went \textit{unmentioned} itself. Conversely, higher scores indicate that a statement was itself mentioned that many times (e.g., $+$3 would indicate that statement was mentioned by someone in the dyad in three out of four interactions). In the original paper, for each participant, the authors assessed the number of belief difference scores (original conceptualization) at each R/S level. Because of missingness, they collapsed across negative values (R/S$-$) and positive values (R/S$+$) to form a categorical predictor of belief change (e.g., would belief in statements mentioned [reinforced] during dyadic recall change more than those not mentioned?). This is potentially problematic because, if missigness is different across R/S levels, the resulting collapsed variable is not actually indicative of the underlying data.
+
+As the goal was simply to model this missingness, I did not fit a null/unconditional model (though random participant intercepts were included, since each participant several observations) and fit only a single model regressing missingness (binary; 1 = yes, 0 = no) on whether or not items were practiced by a confederate public speaker,\footnote{Alhough only those in the experimental condition listened to this, it was a variable in the original study.} R/S level, and condition. These results are depicted in \textbf{Table 4} and significant effects are depicted visually in \textbf{Figure 5}.
+
+While data was not missing systematically between conditions, holding the other predictors constant (OR = 1.13, $p$ = .1427), there was systematic missingness as a function of confederate retrieval practice and R/S level. With regard to confederate retrieval practice (a critical predictor in the original analysis), missingness was 45\% more likely for statements that were practiced than for statements that were not practiced (OR = 1.45, $p < .001$). With regard to R/S level, missingness was more likely with higher levels (OR = 1.12, $p < .001$). That is, for a one-unit increase in R/S level, the odds of being data being missing is multiplied by 1.12.\footnote{There was a large degree of missingness at R/S level $-$4, however the number of levels necessitated modeling R/S as continuous (e.g., convergence issues including a 9-level factor; costly with respect to $df$ making that many contrasts). Other than that, there is indeed a positive R/S level/missingness relationship. The analysis script includes code for looking at missingness descriptively if the reader is so inclined.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TABLE 4 - MODEL 4 MISSINGNESS
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+\textbf{Table 4}
+
+\textit{Full, Mixed Effects Logistic Regression (Analysis \#4)}
+
+\vspace{0.5cm}
+
+% Table created by stargazer v.5.2.2 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Fri, Dec 03, 2021 - 11:50:05
+\begin{table}[!htbp] \centering 
+  %\caption{} 
+  %\label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{1}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-2} 
+\\[-1.8ex] & Data Missing \\ 
+\hline \\[-1.8ex] 
+ Retrieval Practice (Yes) & 0.37$^{***}$ \\ 
+  & (0.07) \\ 
+  & \\ 
+ R/S Level & 0.11$^{***}$ \\ 
+  & (0.01) \\ 
+  & \\ 
+ Condition (2) & 0.12 \\ 
+  & (0.08) \\ 
+  & \\ 
+ Intercept & $-$0.30$^{*}$ \\ 
+  & (0.13) \\ 
+  & \\ 
+\hline \\[-1.8ex] 
+Observations & 3,024 \\ 
+Log Likelihood & $-$2,050.17 \\ 
+Akaike Inf. Crit. & 4,110.33 \\ 
+Bayesian Inf. Crit. & 4,140.40 \\ 
+\hline 
+\hline \\[-1.8ex] 
+
+\end{tabular} 
+\end{table} 
+
+\singlespacing
+\textit{Note}. $^{*}p < .05$, $^{**}p < .01$, $^{***}p < .001$. Coefficients are log-odds and respective (standard errors).
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TABLE 3 - MODEL 3 MISSINGNESS
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\doublespacing
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FIGURE 5
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+
+\textbf{Figure 5}
+
+\textit{R/S Level Missingness: Mixed Effects Logistic Regression}
+
+\vspace{0.5cm}
+
+\hspace{-1.5cm}\includegraphics[scale=0.12]{writing/manuscript/2021-12-03_13-02_05_rs_missingness_plot_ab.png}
+
+\singlespacing
+\noindent\textit{Note}. Frequentist model results. Missingness probability ($y$-axis) as a function of retrieval practice and R/S scores, averaging across all other predictor variables.
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FIGURE 5
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\doublespacing
+
+\begin{center}
+    \textbf{(Brief) Discussion}
+\end{center}
+
+\noindent\textbf{Belief Change: Measurement \& Modeling Matters}
+
+The first, and perhaps most critical takeaway from these analyses, is that results may change when the definition of \say{belief} or \say{belief change} is modified. Similarly, modeling choices matter. \textbf{Analyses \#1-\#3} clearly demonstrate this. When belief change is treated as binary (change or not), the main effect of condition $-$ a critical variable in the present study $-$ disappears. When belief change is characterized as ordinal, this effect returns. Finally, when belief \textit{itself} is treated as ordinal (e.g., don't believe/neutral/do believe), and condition is allowed to interact with time (Phase \#1 $\rightarrow$ Phase \#2), an interesting interaction effect emerges. In general, though, the condition effects largely transfer from the original study, with those in the experimental condition (who listened to a confederate public speaker selectively retrieve a subset of true statements) exhibiting higher probabilities of belief change. 
+
+\noindent\textbf{The Perils of Excessive Aggregation}
+
+Related to the criticality of measurement and modeling choices, this has also been an exercise in the assessment of aggregation effects. Specifically, the models described here allowed for the inclusion of predictor variables $-$ that were aggregated or ignored in the original study $-$ to be left in tact. Likewise, because of the increased flexibility afforded by these models, additional variables could be included as covariates (e.g., item category and participant political views). This proved important: at least once across different models, \textit{each} of these variables (with the exception of item category) had a significant relationship with the outcome. The same was true for missingness in \textbf{Analysis \#4}, such that aggregation conducted \textit{because} of missingness collapsed across systematically missing data. Such a practice creates a variable that does not represent the underlying features of the data. A broader question arises from this $-$ why all the aggregation? I believe the answer to this is the eventual modelling strategy. If a researcher (or a reviewer) is set on using an ANOVA, aggregation might be the only thing that makes that possible.
+
+\noindent\textbf{Concluding Thoughts}
+
+To close, I want to note that this paper is not meant to be an indictment of the original work by \textcite{vlasceanu_synchronization_2020}. I'm a fan of the original study and this project was only possible because the (mostly) raw data was shared. While the current investigation suggests results might change depending on how belief/belief change is conceptualized or modeled, and that aggregation can hide potentially important effects, the essential effects persist. In that vein, all of the decisions made by \textcite{vlasceanu_synchronization_2020} are, at the very least, reasonably justifiable. ANOVAs are easier to interpret, easier to implement, and often lead to the same or very similar conclusions. As demonstrated here, though, more sophisticated models may afford a) less aggregation and b) the inclusion of more variables/covariates. If there is one takeaway from this paper, it is that measurement and modeling choices matter $-$ and sometimes a more technical approach can reveal something a more standard approach could miss.
+
+%%%%%%%%%
+% references
+
+\newpage
+
+\begin{center}
+    \textbf{References}
+\end{center}
+
+%\vspace{-0.4cm} % remove extra spacing after major header (leave for time being [aesthetics])
+
+\printbibliography[heading=none]
+
+%%%%%%%%%
+% tables and figures
+
+\newpage
+
+\begin{center}
+    \textbf{Appendix A}
+    
+    \textbf{A Mixed Effect, Zero-Inflated Beta Regression Re-Analysis of Belief Synchronicity}
+\end{center}
+
+The original paper used a 3-way mixed ANOVA to probe the (interacting) effects of a) condition [1 vs. 2; between participants], b) change direction [increase vs. decrease; within participants], and c) whether items were practiced or not by a confederate public speaker [practiced vs. not; within participants\footnote{Only those in the experimental condition actually listened to a public speaker selectively practice certain items. See original paper for details.}] on the dependent variable: the proportion of items between \textit{each pair of participants in a network} that increased/decreased in belief together.
+
+This amounts to the following $N$: 66 pairs/network $\times$ 7 networks/condition $\times$ 2 conditions), totalling 924 pairs (really 902, as 22 pairs had only NA values). The idea was to model \say{belief synchronicity} such that a higher proportion of items changing (increasing/decreasing) \textit{together} should indicate that the respective participants changed their beliefs in unison. Higher proportions $=$ more synchronicity.
+
+To start, I was able to replicate the ANOVA results reported by \textcite{vlasceanu_synchronization_2020}. However, an ANOVA is not the ideal fit for these data. First, the dependent variable, a proportion, is bounded $-$ primarily between 0 and 1, but including some 0's. Second, pairs are nested within networks. While a mixed ANOVA can account for repeated measurements within pairs, it stands to reason that pairs stemming from the same network may be more apt to change beliefs in a similar way (perhaps more similarly than pairs between networks). While I was able to \textit{infer} what data belonged to what pairs (assuming only that a given pair had data on one row; original data was in a wide format), I took more of a gamble on ascribing networks codes, presuming sets of stacked rows (66) belonged to a pairs in a given network (makes sense, but could be wrong).\footnote{A safer bet would be to ignore network and instead just model random pair intercepts.} To account for this dependence, I modeled these data with a mixed effect, zero-inflated beta regression. The results are depicted in \textbf{Figure A.1}.
+
+In general, the findings replicated under these more optimal (if complicated) analytical conditions. For comparison, see Figure 5 in \textcite{vlasceanu_synchronization_2020}. As I fit the beta regression with a logit link function, the coefficients can be exponentiated and interpreted as ORs, though I do not include a table or interpretation here (given 3-way interaction, a figure is probably best, anyway). One thing I will note/question: why so little variation, particularly in the control condition? The lines are essentially completely stacked. It is \textit{possible} there is actually very little dependence within pairs/networks, which would be an interesting finding in and of itself, but I am not ready to make that claim (and would be surprised). I think it is more likely that the model is ill-specified in some way.
+
+\textbf{Figure A.1}
+
+\textit{Mixed Effect, Zero-Inflated Beta Regression Re-Analysis of Belief Synchronicity}
+
+\vspace{0.5cm}
+
+\hspace{-1.5cm}\includegraphics[scale=0.12]{writing/manuscript/2021-12-05_11-59_12_synch_int_plot.png}
+
+\singlespacing
+\noindent\textit{Note}. Three-way interaction $-$ predicted probabilities from a zero-inflated mixed effect beta regression.
+
+
+\end{document}
