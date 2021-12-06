@@ -1,4 +1,4 @@
-# Reappraising and re-framing collective beliefs: A novel reanalysis of Vlasceanu et al. (2020)
+# A quantitative exploration of what belief change could mean and why it matters for analysis
 
 This is the git repo for managing the code and data associated with my final paper for PSY 505, completed in November of 2021.
 
@@ -16,6 +16,4 @@ The critical folders/files include the following:
     - Contains **2021-11_original_data.xlsx**. This is the original Vlasceanu et al. data, downloaded from OSF (available here: ).
     - Contains **2021-11_original_data_ggedits.xlsx**. This is the slightly modified original data, in which I updated relevant column names to make them a) unique (and therefore amenable to further processing/analysis with R) and b) more information rich (e.g., including more information about the relevant variables [myth vs. fact, practiced vs. not] by working backward from Excel formulae). Basically, this would have been difficult if not impossible to do in R. 
   - "analysis""
-    - Contains 
-    - Contains 
-    - Contains 
+    - Contains the data used for analysis
