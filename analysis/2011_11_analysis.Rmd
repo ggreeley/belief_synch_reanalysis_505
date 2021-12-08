@@ -1134,7 +1134,7 @@ ordinal_colors <- c("darkred", "grey50", "#008000")
 # fact_or_myth = fact, item category = a
 
 belief_ord_3_phase_plot_b <- belief_ord_3_phase_cond_3_brm_NEW_effects[6] %>%
-  data.frame() %>%
+  data.frame() %>% view()
   janitor::clean_names() %>%
   mutate(political_views_cats_cats = case_when(
     political_views_cats_cats == 1 ~ "Don't Believe",
