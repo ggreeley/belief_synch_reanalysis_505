@@ -1,0 +1,17 @@
+# Garrett Greeley
+# 2021-11-11
+
+# fresh download of data from OSF
+
+## file retrieved from:
+"https://osf.io/6sr4c/"
+
+###
+
+# Garrett Greeley
+# 2021-11-13
+
+## column name edits in new file ahead of R pipeline:
+
+data/osf/2021-11_original_data_ggedits.xlsx
+

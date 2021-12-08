@@ -1,0 +1,350 @@
+---
+title: 'Processing: Raw to Analysis'
+author: "Garrett D. Greeley"
+date: "Document Last Generated: `r format(Sys.time(), '%A, %B %d, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+
+This document/code accomplishes several tasks. In order, it:
+
+1) Loads some libraries (from the `{tidyverse}`) and some data.
+2) Generically cleans of column names
+3) Specifically cleans individual datasets (each sheet in raw data corresponds approximately to one section in the original paper - here, I'm interested in a subset of those sheets)
+4) Writes the cleaned data to ./data/analysis
+
+If the repo is cloned and the file knits properly, the original data (lightly processed manually to make amenable for wrangling with R; data/osf/2021-11_original_data_ggedit.xlsx) is tidied and wrangled. Throughout this process, several new data-sets are created that should be mostly ready for analysis. These datasets are written to the data/analysis folder and are read by analysis/2021-11_analysis.Rmd document for modeling and visualization.
+
+# Libraries
+
+Libraries that may be needed for processing:
+
+```{r}
+library(tidyverse)
+```
+
+Note that, if a library is not used frequently or if there are potential namespace conflicts, it is called with `library::function` conventions. 
+
+# Functions
+
+```{r}
+source(
+  here::here("processing", "functions.R")
+  )
+```
+
+# Read Data
+
+Read the data.
+
+This data file (data/osf/2021-11_original_data_ggedits.xlsx) was manually processed slightly prior to being read. Specifically, column names were made informative using a) context (such as location) and b) Excel formulas. For example, I was able to determine which statements were myths and facts by working backward from aggregation formulas. Likewise, informative columns - with a name but no data - appeared just prior to the relevant data columns. These reference columns were used to adjust redundant column names (e.g., "N1", "N2", ... appear repeatedly following different reference columns) with unique column names. One example:
+
+Column "N1" following "accuracy before" column $\rightarrow$ "raw_accuracy_p1_myth_rpneg_n1", where:
+
+the data is **raw**, the value indexes **accuracy** ratings during phase 1 (**p1**), for the item **n1** which happens to be a **myth** and was not selectively retrieved by the public speaker (*RP-*; **rpneg**).
+
+```{r}
+# raw data on recall proportions
+raw_recall <- readxl::read_xlsx(
+  here::here("data", "osf", "2021-11_original_data_ggedits.xlsx"),
+  sheet = 1,
+  na = c("", "NA")
+  ) %>%
+  janitor::clean_names()
+
+# raw data on rs (reinforcement/suppression) scores - belief change as a function of rs
+raw_rschange <- readxl::read_xlsx(
+  here::here("data", "osf", "2021-11_original_data_ggedits.xlsx"),
+  sheet = 3,
+  na = c("", "NA")
+  ) %>%
+  janitor::clean_names()
+
+# raw data on belief synch
+raw_synch <- readxl::read_xlsx(
+  here::here("data", "osf", "2021-11_original_data_ggedits.xlsx"),
+  sheet = 5,
+  na = c("", "NA")
+  ) %>%
+  janitor::clean_names()
+
+# raw rating data on beliefs (accuracy and support) + demographics
+raw_beliefs <- readxl::read_xlsx(
+  here::here("data", "osf", "2021-11_original_data_ggedits.xlsx"),
+  sheet = 7,
+  na = c("", "NA")
+  ) %>%
+  janitor::clean_names()
+```
+
+# Processing/Wrangling
+
+## Column Type Issues
+
+Excel, unsurprisingly, creates some column type problems (e.g., using "E" instead of rounding).
+
+Looks okay in `raw_recall`, `raw_beliefs`, and `raw_rschange`. Seems to only be an issue in `raw_sycnh`.
+
+```{r}
+raw_synch <- raw_synch %>%
+  select(contains("prop")) %>%
+  mutate(prop_rpneg_decreasetog_practice = as.numeric(prop_rpneg_decreasetog_practice),
+         prop_rpneg_decreasetog_control = as.numeric(prop_rpneg_decreasetog_control))
+```
+
+## Columns of Interest
+
+Not all of the columns in each dataset are relevant. Select what is needed here and rename things if needed - raw_sycnh handled above.
+
+```{r}
+# raw ratings on accuracy and scientific support
+# additionally, demographics live here
+raw_beliefs <- raw_beliefs %>%
+  select(1:11, contains("raw")) %>%
+  rename(participant_code = please_type_your_participant_code_below_this_is_composed_of_the_first_three_letters_of_the_town_in_which_you_were_born_followed_by_a_dash_and_the_two_digits_of_the_month_you_were_born_followed_by_another_dash_and_the_two_digits_of_the_date_you_were_born_if_your_month_or_date_is_only_one_digit_add_a_zero_in_front_for_instance_if_you_were_born_in_princeton_nj_on_february_8_your_code_would_be_pri_02_08_let_the_experimenter_know_if_you_have_any_questions_about_your_code,
+         political_views = indicate_your_political_views_on_a_scale_from_1_to_9_where_1_means_a_oevery_liberala_and_9_means_a_oevery_conservative_a)
+
+# raw_beliefs included here, but unclear how computed
+# paper says average of accuracy and support, but all whole numbers
+# use only for recall data (e.g., prop columns)
+raw_recall <- raw_recall %>%
+  select(1:5, contains(c("raw", "prop"))) %>%
+  rename(condition = condition_2,
+         network = network_3)
+
+raw_rschange <- raw_rschange %>%
+  select(2:4, contains("rs_") & !contains("belief_change"))
+```
+
+## Pivot and Tidy
+
+### Raw Ratings
+
+At this point, the three datasets with 168 rows (wide format) could be merged, but that's a lot of columns in one place and would make subsequent pivoting difficult. For now, keep separate, pivoting each to a longer format.
+
+`raw_beliefs` $\rightarrow$ `raw_beliefs_long`:
+
+```{r}
+raw_beliefs_long <- raw_beliefs %>%
+  pivot_longer(cols = contains("raw"),
+               names_to = "full_item_info",
+               values_to = "raw_rating") %>%
+  mutate(tmp_col = str_split(full_item_info, pattern = "_"),
+         .after = full_item_info) %>%
+  mutate(data_type = map_chr(tmp_col, 1),
+         rating_type = map_chr(tmp_col, 2),
+         phase = map_chr(tmp_col, 3),
+         fact_or_myth = map_chr(tmp_col, 4),
+         retrieval_practice = map_chr(tmp_col, 5),
+         item_code = map_chr(tmp_col, 6),
+         item_category = str_sub(item_code, start = 1, end = 1)) %>%
+  select(-tmp_col) %>%
+  relocate(raw_rating, .after = item_category)
+```
+
+### Raw Recall (ISSUE)
+
+For recall data, which includes "belief" data, pivot the recall columns separately. While the article states that for each item $i$ and person $j$, $belief_{ij} = \frac{accuracy_{i} + scientific_{i}}{2}$, all the belief ratings are whole numbers, so not an average unless there was *perfect* congruency across all participants/items.
+
+So, for now, I'm focusing on recall - "belief" can be reconstructed from the raw data included in `raw_beliefs`.
+
+`raw_recall` $\rightarrow$ `raw_recall_long`:
+
+```{r}
+raw_recall %>%
+  select(1:5, contains("prop")) %>%
+  pivot_longer(cols = contains("prop"),
+               names_to = "full_item_info",
+               values_to = "prop_dyadic_recall") %>%
+  mutate(tmp_col = str_split(full_item_info, pattern = "_"),
+         .after = full_item_info) %>%
+  mutate(measure_type = map_chr(tmp_col, 1),
+         task_type = map_chr(tmp_col, 2),
+         fact_or_myth = map_chr(tmp_col, 3),
+         retrieval_practice = map_chr(tmp_col, 4),
+         item_code = map_chr(tmp_col, 5),
+         item_category = str_sub(item_code, start = 1, end = 1)) %>% 
+  select(-tmp_col) %>%
+  relocate(prop_dyadic_recall, .after = item_category) %>%
+  mutate(prop_dyadic_recall = round(prop_dyadic_recall, 4),
+         prop_dyadic_recall_ntrials = case_when(
+           prop_dyadic_recall == 0.25 |
+             prop_dyadic_recall == 0.5 |
+             prop_dyadic_recall == 0.75 ~ 4,
+           prop_dyadic_recall == 0.3333 |
+             prop_dyadic_recall == 0.6667 ~ 3,
+           TRUE ~ 999
+         )) %>% #view()
+  # some participants appear to have BOTH .25/.5/.75 recall levels AND .33/.66 recall levels
+  # that should be impossible - individuals interact 3 OR 4 times...how frequent is this?
+  mutate(prop_dyadic_recall_ntrials = ifelse(prop_dyadic_recall_ntrials == 999,
+                                             NA,
+                                             prop_dyadic_recall_ntrials)) %>%
+  group_by(response_id) %>%
+  mutate(ntrials_consistent = ifelse(3 & 4 %in% prop_dyadic_recall_ntrials, FALSE, TRUE)) %>%
+  ungroup() %>%
+  filter(ntrials_consistent == FALSE) %>%
+  group_by(response_id) %>%
+  slice_head(n = 1) #%>%
+  # 111 / 168 participants have differing numbers of trials implied by recall proportions
+  #view()
+```
+
+Stopping here, for now, on the recall data. Above code demonstrates that a significant chunk of the sample - 111 individuals - have recall proportions that are inconsistent. Participants within a network are reported to have recalled in **either** 3 or 4 dyads. Thus, within a participant and for each item, possible recall values are only:
+
+If 3 dyadic recalls, an item can be recalled - 0, .33, .66, or 1
+If 4 dyadic recalls, an item can be recalled - 0, .25, .5, .75, or 1
+
+In all, 111 participants have recall levels that include possibilities from both of these options. 
+
+My original plan was to fit a mixed-effects logistic regression model to these data at the item level, but that requires knowing how many trials were possible for a given participant (e.g., item $i$ for participant $j$ was recalled in 3 trials out of 4). However, as it appears the (implied) number of trials is inconsistent *within* participants, this isn't possible.
+
+Modeling these proportions in a beta regression context is possible, but I'm worried about variance - at most, there are only 5 possible values. For now, moving on to `raw_rschange` and `raw_synch` data.
+
+### Raw R/S Change
+
+```{r}
+raw_rschange_long <- raw_rschange %>%
+  rename(response_id = response_id_2,
+         condition = condition_3,
+         network = network_4) %>%
+  # exclude aggregate (neg/0/pos) columns - not needed for present purposes
+  # keep rs_*all*_ columns (should just be average of rppos and rpneg)
+  # can revisit if replication of ANOVA in paper is needed
+  select(1:30) %>%
+  pivot_longer(cols = 4:30,
+               names_to = "full_rs_info",
+               values_to = "belief_change") %>%
+  mutate(tmp_col = str_split(full_rs_info, pattern = "_"),
+         .after = full_rs_info) %>%
+  mutate(measure_type = map_chr(tmp_col, 1),
+         retrieval_practice = map_chr(tmp_col, 2),
+         rs_level = map_chr(tmp_col, 3),
+         rs_level_num = case_when(
+           rs_level == "neg4" ~ -4,
+           rs_level == "neg3" ~ -3,
+           rs_level== "neg2" ~ -2,
+           rs_level == "neg1" ~ -1,
+           rs_level == "zero" ~ 0,
+           rs_level == "pos1" ~ 1,
+           rs_level == "pos2" ~ 2,
+           rs_level == "pos3" ~ 3,
+           rs_level == "pos4" ~ 4,
+         ),
+         belief_increase = ifelse(belief_change > 0, 1, 0),
+         retrieval_practice_positive = case_when(
+           retrieval_practice == "rppos" ~ 1,
+           retrieval_practice == "rpneg" ~ 0,
+           TRUE ~ NA_real_
+         ),
+         missing_data = ifelse(is.na(belief_change), 1, 0)) %>%
+  select(-tmp_col) %>%
+  relocate(belief_change, .after = rs_level_num)
+  
+```
+
+### Raw Synchronicity
+
+This data is set up a little different than the rest. There are "practice" columns (presumably belonging to the experimental condition) and "control" columns, split by items that were selectively retrieved by the public speaker ("rppos") or not ("rpneg") and whether or not the column indexes increasing or decreasing together. Thus, each column is a proportion - the proportion of items that increased/decreased together for the *pair*.
+
+The set up, then, yields 8 columns:
+
+- practice, rppos, increasetog
+- control, rppos, increasetog
+- practice, rppos, decreasetog
+- control, rppos, decreastog
+
+and repeat for rpneg items...
+
+Finally, there are 462 rows in the raw because within each network there are 12 individuals and thus (`ncol(combn(12, 2))`) = 66 pairs. With 7 networks per condition, $7 \times 66 = 462$.
+
+Pivoting everything should return a data with $462 \times 2 = 924$ for each of the 4 rppos/rpneg vs. increasetog/decreasetog combinations, so $924 \times 4 = 3696$.
+
+```{r}
+#raw_synch_long <- raw_synch %>%
+#  mutate(ex_net = rep(letters[1:7], each = 66),
+#         co_net = rep(letters[8:14], each = 66),
+#         ex_pair = 1:462,
+#         con_pair = 462 + ex_pair) %>% view()
+#  pivot_longer(cols = everything(),
+#               names_to = "full_var_info",
+#               values_to = "prop") %>%
+#  mutate(tmp_col = str_split(full_var_info, pattern = "_"),
+#         .after = full_var_info) %>%
+#  mutate(measure_type = map_chr(tmp_col, 1),
+#         retrieval_practice = map_chr(tmp_col, 2),
+#         change_direction = map_chr(tmp_col, 3),
+#         condition = map_chr(tmp_col, 4)) %>%
+#  select(-tmp_col) %>%
+#  relocate(prop, .after = condition)
+
+# 2021-12-03
+# in order to conduct mixed effect beta regression, need (at least) pair information
+# (e.g., for within-pair measurement; random effects) - network information may be nice as well...
+
+# that is NOT included in the data on OSF, but because of the wide format, a reasonable 
+# approach is to assume - for a given row of practice/control data (that is between participant) - 
+# data belongs to one pair. that is a safe assumption, I think. for network information,
+# I assume that the 66 pairs from each network are in adjacent rows (e.g., 1:66 = network 1)
+
+# the first mutate creates unique network and pair codes
+# but remember, because data is wide and there are separate columns for
+# "practice" and "control" between participant variables, 
+# the final mutate after pivoting (319-321) selects the network/pair values really 
+# corresponding to the pivoted condition information
+raw_synch_long <- raw_synch %>%
+  mutate(ex_net = rep(letters[1:7], each = 66),
+         co_net = rep(letters[8:14], each = 66),
+         ex_pair = 1:462,
+         con_pair = 462 + ex_pair) %>% #view()
+  pivot_longer(cols = contains("prop"),
+               names_to = "full_var_info",
+               values_to = "prop") %>%
+  mutate(tmp_col = str_split(full_var_info, pattern = "_"),
+         .after = full_var_info) %>%
+  mutate(measure_type = map_chr(tmp_col, 1),
+         retrieval_practice = map_chr(tmp_col, 2),
+         change_direction = map_chr(tmp_col, 3),
+         condition = map_chr(tmp_col, 4)) %>%
+  select(-tmp_col) %>%
+  relocate(prop, .after = condition) %>%
+  mutate(actual_net = ifelse(condition == "practice", ex_net, co_net),
+         actual_pair = ifelse(condition == "practice", ex_pair, con_pair),
+         actual_pair = sprintf("pair_%i", actual_pair)) %>%
+  select(-ex_net,-ex_pair,-co_net, -con_pair)
+```
+
+# Write Data
+
+Write data to data/analysis, to be read by 2021-11_analysis.Rmd
+
+```{r}
+#write_csv(raw_beliefs_long,
+#          file = here::here("data", "analysis", "2021-11_long_beliefs.csv"),
+#          na = "")
+#
+#write_csv(raw_rschange_long,
+#          file = here::here("data", "analysis", "2021-11_long_rschange.csv"),
+#          na = "")
+#
+#write_csv(raw_synch_long,
+#          file = here::here("data", "analysis", "2021-11_long_synch.csv"),
+#          na = "")
+```
+
+# Session Info
+
+For reproducibility
+
+```{r}
+sessionInfo()
+```
+
